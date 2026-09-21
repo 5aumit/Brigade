@@ -19,6 +19,8 @@ Consider:
 
 Possible recommendations include direct work, a short plan, grilling, a spec, tickets, debugging, TDD, independent review, manual review, feedback capture, retrospective reflection, or a relevant installed skill.
 
+When one bounded coding worker would materially help, the route result may include a suggested backend, harness, model, and reasoning profile. This is a recommendation only. It never authorizes dispatch. The primary must still ask the User for explicit permission for that specific worker.
+
 Prefer direct implementation for small clear tasks. Recommend added process only when its benefit exceeds its cost.
 
 Use a compact result:

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Guide"
+  short_description: "Prioritize competing project work"
+  default_prompt: "Use $guide to help me choose the next meaningful project work."

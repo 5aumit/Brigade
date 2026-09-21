@@ -4,11 +4,12 @@ set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 STACK_REPO=$(dirname -- "$SCRIPT_DIR")
 AGENTS_DIR="${HOME}/.agents"
+BIN_DIR="${HOME}/.local/bin"
 DRY_RUN=0
 ASSUME_YES=0
 
 usage() {
-  echo "Usage: $0 [--dry-run] [--yes] [--agents-dir PATH]"
+  echo "Usage: $0 [--dry-run] [--yes] [--agents-dir PATH] [--bin-dir PATH]"
 }
 
 while (($#)); do
@@ -24,6 +25,11 @@ while (($#)); do
     --agents-dir)
       [[ $# -ge 2 ]] || { usage >&2; exit 2; }
       AGENTS_DIR=$2
+      shift 2
+      ;;
+    --bin-dir)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      BIN_DIR=$2
       shift 2
       ;;
     -h|--help)
@@ -43,6 +49,7 @@ done
 BACKUP_DIR="$AGENTS_DIR/5stack-backups/v1"
 SKILLS_DIR="$AGENTS_DIR/skills"
 ROOT_LINK="$AGENTS_DIR/5stack"
+BIN_LINK="$BIN_DIR/5stack"
 mapfile -t OWNED_SKILLS < "$STACK_REPO/skills/owned.txt"
 LEGACY_SKILLS=(5stack-setup feedback reflect)
 
@@ -156,6 +163,7 @@ done
 
 install_link "$STACK_REPO" "$ROOT_LINK" "$BACKUP_DIR/root"
 install_link "$STACK_REPO/AGENTS.md" "$AGENTS_DIR/AGENTS.md" "$BACKUP_DIR/AGENTS.md"
+install_link "$STACK_REPO/bin/5stack" "$BIN_LINK" "$BACKUP_DIR/bin/5stack"
 
 for skill in "${OWNED_SKILLS[@]}"; do
   [[ -f "$STACK_REPO/skills/$skill/SKILL.md" ]] || {

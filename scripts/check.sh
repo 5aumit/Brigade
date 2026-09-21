@@ -13,7 +13,10 @@ fail() {
 for required in \
   AGENTS.md \
   README.md \
+  bin/5stack \
+  lib/worker_control.py \
   references/trust-handoff.md \
+  scripts/worker.py \
   evals/scenarios.md; do
   [[ -f "$STACK_REPO/$required" ]] || fail "missing $required"
 done
@@ -65,6 +68,9 @@ fi
 bash -n "$STACK_REPO/scripts/install.sh"
 bash -n "$STACK_REPO/scripts/uninstall.sh"
 bash -n "$STACK_REPO/scripts/check.sh"
+bash -n "$STACK_REPO/bin/5stack"
+python3 -m py_compile "$STACK_REPO/lib/worker_control.py" "$STACK_REPO/scripts/worker.py"
+python3 -m unittest discover -s "$STACK_REPO/tests"
 
 CHECK_TMP=$(mktemp -d)
 case "$CHECK_TMP" in
@@ -74,27 +80,30 @@ esac
 trap 'rm -rf -- "$CHECK_TMP"' EXIT
 
 TEST_AGENTS_DIR="$CHECK_TMP/agents"
+TEST_BIN_DIR="$CHECK_TMP/bin"
 mkdir -p "$TEST_AGENTS_DIR/skills/implement"
 printf 'original global instructions\n' > "$TEST_AGENTS_DIR/AGENTS.md"
 printf 'original implement skill\n' > "$TEST_AGENTS_DIR/skills/implement/SKILL.md"
 
 EMPTY_AGENTS_DIR="$CHECK_TMP/empty-agents"
-if bash "$STACK_REPO/scripts/install.sh" --agents-dir "$EMPTY_AGENTS_DIR" >/dev/null 2>&1; then
+if bash "$STACK_REPO/scripts/install.sh" --agents-dir "$EMPTY_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null 2>&1; then
   fail "installer created AGENTS.md without confirmation"
 fi
 [[ ! -e "$EMPTY_AGENTS_DIR/AGENTS.md" && ! -L "$EMPTY_AGENTS_DIR/AGENTS.md" ]] || fail "installer changed empty agents directory without confirmation"
-bash "$STACK_REPO/scripts/install.sh" --yes --agents-dir "$EMPTY_AGENTS_DIR" >/dev/null
+bash "$STACK_REPO/scripts/install.sh" --yes --agents-dir "$EMPTY_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null
 [[ -L "$EMPTY_AGENTS_DIR/AGENTS.md" ]] || fail "installer did not create AGENTS.md with explicit approval"
 
-if bash "$STACK_REPO/scripts/install.sh" --agents-dir "$TEST_AGENTS_DIR" >/dev/null 2>&1; then
+if bash "$STACK_REPO/scripts/install.sh" --agents-dir "$TEST_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null 2>&1; then
   fail "installer replaced AGENTS.md without confirmation"
 fi
 grep -q 'original global instructions' "$TEST_AGENTS_DIR/AGENTS.md" || fail "installer changed AGENTS.md after missing confirmation"
 [[ ! -e "$TEST_AGENTS_DIR/5stack" && ! -L "$TEST_AGENTS_DIR/5stack" ]] || fail "installer changed files before confirmation"
 
-bash "$STACK_REPO/scripts/install.sh" --yes --agents-dir "$TEST_AGENTS_DIR" >/dev/null
+bash "$STACK_REPO/scripts/install.sh" --yes --agents-dir "$TEST_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null
 [[ -L "$TEST_AGENTS_DIR/AGENTS.md" ]] || fail "installer did not link AGENTS.md"
 [[ -L "$TEST_AGENTS_DIR/5stack" ]] || fail "installer did not link the 5stack repository"
+[[ -L "$TEST_BIN_DIR/5stack" ]] || fail "installer did not link the 5stack command"
+XDG_STATE_HOME="$CHECK_TMP/state" "$TEST_BIN_DIR/5stack" worker list >/dev/null || fail "installed 5stack command did not run"
 for skill in "${OWNED_SKILLS[@]}"; do
   [[ -L "$TEST_AGENTS_DIR/skills/$skill" ]] || fail "installer did not link $skill"
 done
@@ -105,15 +114,16 @@ ln -s "$STACK_REPO/skills/5stack-setup" "$TEST_AGENTS_DIR/skills/5stack-setup"
 ln -s "$STACK_REPO/skills/feedback" "$TEST_AGENTS_DIR/skills/feedback"
 ln -s "$STACK_REPO/skills/reflect" "$TEST_AGENTS_DIR/skills/reflect"
 
-bash "$STACK_REPO/scripts/install.sh" --yes --agents-dir "$TEST_AGENTS_DIR" >/dev/null
+bash "$STACK_REPO/scripts/install.sh" --yes --agents-dir "$TEST_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null
 [[ ! -e "$TEST_AGENTS_DIR/skills/5stack-setup" && ! -L "$TEST_AGENTS_DIR/skills/5stack-setup" ]] || fail "installer left legacy 5stack-setup"
 [[ -f "$TEST_AGENTS_DIR/skills/feedback/SKILL.md" ]] || fail "installer did not restore legacy feedback backup"
 [[ ! -e "$TEST_AGENTS_DIR/skills/reflect" && ! -L "$TEST_AGENTS_DIR/skills/reflect" ]] || fail "installer left legacy reflect"
 grep -q 'original feedback skill' "$TEST_AGENTS_DIR/skills/feedback/SKILL.md" || fail "installer restored wrong legacy feedback backup"
 
-bash "$STACK_REPO/scripts/uninstall.sh" --agents-dir "$TEST_AGENTS_DIR" >/dev/null
+bash "$STACK_REPO/scripts/uninstall.sh" --agents-dir "$TEST_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null
 [[ -f "$TEST_AGENTS_DIR/AGENTS.md" ]] || fail "uninstaller did not restore AGENTS.md"
 [[ ! -e "$TEST_AGENTS_DIR/5stack" && ! -L "$TEST_AGENTS_DIR/5stack" ]] || fail "uninstaller left the 5stack repository link"
+[[ ! -e "$TEST_BIN_DIR/5stack" && ! -L "$TEST_BIN_DIR/5stack" ]] || fail "uninstaller left the 5stack command"
 for skill in "${OWNED_SKILLS[@]}"; do
   if [[ "$skill" == "implement" ]]; then
     [[ -f "$TEST_AGENTS_DIR/skills/implement/SKILL.md" ]] || fail "uninstaller did not restore implement"

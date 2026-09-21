@@ -1,4 +1,6 @@
 route
+guide
+delegate
 give-5stack-feedback
 reflect-5stack
 brainstorming

@@ -16,6 +16,7 @@ Develop with trust in yourself and your agent.
 ## Commands to remember
 
 - `/route`: recommend the smallest sufficient workflow.
+- `$delegate`: recommend and, after explicit approval, dispatch one bounded coding worker.
 - `/give-5stack-feedback <text>`: correct the current work and draft a feedback handoff.
 - `/review-5stack-feedback`: investigate a pasted feedback handoff in this repository.
 - `/reflect-5stack`: inspect the current session and draft useful feedback handoffs.
@@ -33,7 +34,13 @@ bash scripts/check.sh
 bash scripts/install.sh
 ```
 
-The installer links the repository at `~/.agents/5stack`, then links 5stack-owned instructions and skills into `~/.agents`. Before creating or replacing `~/.agents/AGENTS.md`, it shows the change and asks for confirmation before making any changes. When replacing an existing path, it also shows its backup path. It backs up conflicting files and does not remove unrelated skills. Start a fresh Codex session after installation.
+The installer links the repository at `~/.agents/5stack`, then links 5stack-owned instructions and skills into `~/.agents`. It also links the optional `5stack` command into `~/.local/bin`. Before creating or replacing `~/.agents/AGENTS.md`, it shows the change and asks for confirmation before making any changes. When replacing an existing path, it also shows its backup path. It backs up conflicting files and does not remove unrelated skills. Start a fresh Codex session after installation.
+
+Worker backends are optional. Check them with:
+
+```bash
+5stack worker capabilities
+```
 
 For noninteractive use, pass `--yes` to explicitly approve installing global instructions:
 

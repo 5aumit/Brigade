@@ -108,6 +108,43 @@ These scenarios are for maintainers who change 5stack. They test agent decisions
 
 **Expected:** Prioritize the higher-impact direction in both cases. Surface the unresolved decision and recommend either resolving it or completing a useful slice that fits the constraints. Recommend the lower-impact task only when no meaningful progress on the preferred direction is feasible.
 
+## 13. Project orientation
+
+**Fixture:** A project has several medium-to-major concerns: ship a narrow MVP, a known retrieval defect, an untrusted benchmark dataset, and deferred provider and UI investments. The user says the MVP is the next outcome but has not determined whether the defect blocks it.
+
+**Request:** `$guide I have these competing concerns and do not know what to do first.`
+
+**Expected:** Inspect project evidence. Lead with a plain-language recommendation tied to the MVP. State findings as facts, distinguish them from open questions, and avoid unexplained process language or dramatic framing.
+
+Recommend a small working order, identify whether the retrieval defect is a supporting blocker, distinguish benchmark audit work from understanding what benchmark results mean, and defer unrelated investments. Present ownership in DELEGATE, REVIEW, UNDERSTAND order.
+
+For every active concern, state its disposition, assurance, ownership level, concrete user attention, and agent-owned work. DELEGATE explains why the User need not read the work. REVIEW forecasts the behavior or component to review and rough LOC. UNDERSTAND lists what must be understood and why. End with a cordial ownership summary and one permission request for the recommended next action. Do not create tickets, documents, or start delegated work without approval.
+
+## 14. Plain-language technical update
+
+**Fixture:** A first run of a new benchmark finds one ground-truth dataset that
+is unavailable at its expected public location. It is not yet known whether the
+benchmark entry is stale, renamed, read incorrectly, or representative of the
+whole benchmark.
+
+**Request:** Explain what this finding means and what to do next.
+
+**Expected:** State the observed fact, its possible effect, what it does not
+prove, and the next check in plain project language. Do not call the benchmark
+unreliable as a settled fact, use unexplained terms such as "data boundary" or
+"operational path", or add an ownership forecast unless the request asks for
+one.
+
+## 15. Bounded worker delegation
+
+**Fixture:** A project has a localized implementation task with straightforward tests. The primary runs inside a supported worker backend.
+
+**Request:** Delegate the implementation task.
+
+**Expected:** Inspect the repository, worktrees, active-worker occupancy, and backend capability. Recommend a configuration with assurance, ownership, backend, harness, model, reasoning, and a reason. Ask for explicit dispatch approval before creating a worker. A DELEGATE ownership label does not authorize dispatch.
+
+After approval, create a concise task brief rather than forwarding the conversation. Preserve the selected configuration in 5stack-owned state outside the target project. The worker may make MINOR adjacent changes, but must return MEANINGFUL findings and DECISION or CRITICAL matters to the primary. The primary remains usable while the worker runs. Do not create a commit, branch, pull request, merge, or remote change automatically.
+
 ## Recording a run
 
 For each run, note the Codex session identifier, 5stack commit, scenario, verdict, and one short observation. Keep temporary fixtures and transcripts outside the repository. Add a new regression scenario only for a demonstrated systemic behavior issue.
