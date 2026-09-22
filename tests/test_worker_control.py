@@ -95,7 +95,7 @@ class WorkerControlTests(unittest.TestCase):
 
     def test_orca_launch_uses_durable_run_and_dispatch_identifier(self):
         worker = {
-            "brief": "bounded brief", "task": {"title": "Test worker"},
+            "id": "w_test", "brief": "bounded brief", "task": {"title": "Test worker"},
             "configuration": {"harness": "codex", "model": "gpt-5.6-luna", "reasoning": "medium"},
             "worktree": {"path": "/repo", "kind": "current"},
         }
@@ -113,6 +113,63 @@ class WorkerControlTests(unittest.TestCase):
         self.assertIn("--run", calls[-1])
         self.assertIn("run_123", calls[-1])
 
+    def test_orca_new_child_has_deterministic_name(self):
+        worker = {
+            "id": "w_abc123", "brief": "bounded brief", "task": {"title": "Test worker"},
+            "configuration": {"harness": "codex", "model": "gpt-5.6-luna", "reasoning": "medium"},
+            "worktree": {"path": "/repo", "kind": "backend-child"},
+        }
+        backend = control.OrcaBackend()
+        calls = []
+        replies = iter([
+            {"ok": True, "result": {"run": {"id": "run_123"}}},
+            {"ok": True, "result": {"dispatch": {"id": "dispatch_123"}, "launch": {"effective": {"model": "gpt-5.6-luna", "effort": "medium"}}}},
+        ])
+        backend.call = lambda arguments, _description: calls.append(arguments) or next(replies)
+        backend.launch(worker, "new")
+        self.assertIn("new-child", calls[-1])
+        self.assertEqual(calls[-1][calls[-1].index("--name") + 1], "5stack-abc123")
+
+    def test_orca_existing_worktree_uses_identity_from_its_directory(self):
+        backend = control.OrcaBackend()
+        calls = []
+
+        def call(arguments, _description, *, cwd=None):
+            calls.append((arguments, cwd))
+            return {"result": {"worktree": {"identity": {"key": "wt2:local:123"}}}}
+
+        backend.call = call
+        self.assertEqual(backend.existing_worktree_selector("/mnt/d/repo/task"), "identity:wt2:local:123")
+        self.assertEqual(calls, [(["worktree", "current"], "/mnt/d/repo/task")])
+
+    def test_orca_explicit_prelaunch_rejection_is_not_uncertain(self):
+        payload = {"ok": False, "error": {"code": "invalid_argument"}, "effects": [], "residualResources": []}
+        self.assertFalse(control.orca_failure_may_have_resources(payload))
+        error = control.LaunchRejected("rejected", resources_may_exist=False)
+        worker = {"backend_session": {"run_id": "run_123"}}
+        self.assertFalse(control.launch_failure_is_uncertain(worker, error))
+
+    def test_orca_ambiguous_rejection_remains_uncertain(self):
+        self.assertTrue(control.orca_failure_may_have_resources({"ok": False}))
+        error = control.LaunchRejected("unknown", resources_may_exist=True)
+        self.assertTrue(control.launch_failure_is_uncertain({"backend_session": {}}, error))
+
+    def test_resolve_failed_launch_releases_occupancy(self):
+        worker = self.worker(status="unverifiable")
+        worker["backend_session"] = {"run_id": "run_123", "launch_started": True}
+        state = {"version": 1, "workers": [worker]}
+        with self.assertRaises(control.WorkerError):
+            control.assert_available_worktree(state, "/repo/task")
+        control.resolve_failed_launch(worker)
+        control.assert_available_worktree(state, "/repo/task")
+        self.assertEqual(worker["status"], "failed")
+
+    def test_resolve_failed_launch_rejects_persisted_dispatch(self):
+        worker = self.worker(status="unverifiable")
+        worker["backend_session"] = {"dispatch_id": "dispatch_123"}
+        with self.assertRaisesRegex(control.WorkerError, "persisted backend resource"):
+            control.resolve_failed_launch(worker)
+
     def test_orca_reconcile_uses_task_lifecycle_not_terminal_state(self):
         backend = control.OrcaBackend()
         worker = {"backend_session": {"dispatch_id": "dispatch_123", "task_id": "task_123", "run_id": "run_123"}}
@@ -122,7 +179,29 @@ class WorkerControlTests(unittest.TestCase):
             {"ok": True, "result": {"workers": [{"dispatch": {"id": "dispatch_123"}, "task": {"status": "succeeded"}}]}},
         ])
         backend.call = lambda _arguments, _description: next(replies)
-        self.assertEqual(backend.inspect(worker), ("completed", "Orca reports task succeeded."))
+        self.assertEqual(backend.inspect(worker), ("completed", "Orca reports worker lifecycle succeeded."))
+
+    def test_orca_reconcile_recognizes_operator_stopped_worker(self):
+        backend = control.OrcaBackend()
+        worker = {"backend_session": {"dispatch_id": "dispatch_123", "run_id": "run_123"}}
+        backend.call = lambda _arguments, _description: {
+            "result": {
+                "dispatch": {"id": "dispatch_123", "status": "failed", "lastFailure": "stopped"},
+                "worker": {"state": "stopped"},
+            }
+        }
+        self.assertEqual(backend.inspect(worker), ("stopped", "Orca reports that the worker was stopped."))
+
+    def test_orca_worker_list_fields_are_lifecycle_inputs(self):
+        self.assertEqual(control.lifecycle_state({"workerState": "running", "dispatchStatus": "pending"}), "running")
+
+    def test_orca_release_targets_exact_dispatch(self):
+        backend = control.OrcaBackend()
+        calls = []
+        backend.call = lambda arguments, _description: calls.append(arguments) or {"result": {}}
+        detail = backend.release({"backend_session": {"dispatch_id": "dispatch_123"}})
+        self.assertEqual(calls, [["orchestration", "worker-release", "--dispatch", "dispatch_123"]])
+        self.assertIn("child worktree remains", detail)
 
     def test_orca_backend_failure_is_unverifiable_not_disappeared(self):
         backend = control.OrcaBackend()

@@ -115,7 +115,7 @@ def command_dispatch(args) -> int:
     try:
         result = control.backend_for(backend_name).launch(worker, args.worktree, persist_progress)
     except Exception as error:
-        uncertain = bool(worker.get("backend_session", {}).get("launch_started") or worker.get("backend_session", {}).get("agent_start_attempted"))
+        uncertain = control.launch_failure_is_uncertain(worker, error)
         control.event(worker, "launch_uncertain" if uncertain else "launch_failed", str(error), status="unverifiable" if uncertain else "failed")
         control.save_state(state)
         if isinstance(error, control.WorkerError):
@@ -183,6 +183,21 @@ def command_stop(args) -> int:
     return 0
 
 
+def command_release(args) -> int:
+    state = control.load_state()
+    worker = control.find_worker(state, args.worker_id)
+    if worker["status"] in control.ACTIVE_STATUSES:
+        control.reconcile_worker(worker)
+    if worker["status"] not in control.TERMINAL_STATUSES:
+        control.save_state(state)
+        raise control.WorkerError(f"Cannot release a {worker['status']} worker. Stop it or wait for it to settle first.")
+    detail = control.backend_for(worker["configuration"]["backend"]).release(worker)
+    control.event(worker, "released", detail)
+    control.save_state(state)
+    print(detail)
+    return 0
+
+
 def command_reconcile(args) -> int:
     state = control.load_state()
     results = []
@@ -192,6 +207,15 @@ def command_reconcile(args) -> int:
             results.append({"id": worker["id"], "status": status, "detail": detail})
     control.save_state(state)
     output(results, args.json)
+    return 0
+
+
+def command_resolve_failed(args) -> int:
+    state = control.load_state()
+    worker = control.find_worker(state, args.worker_id)
+    control.resolve_failed_launch(worker)
+    control.save_state(state)
+    print(f"Resolved {worker['id']} as a failed pre-launch attempt. Writer occupancy released.")
     return 0
 
 
@@ -256,9 +280,17 @@ def parser() -> argparse.ArgumentParser:
     stop.add_argument("worker_id")
     stop.set_defaults(function=command_stop)
 
+    release = commands.add_parser("release", help="close a settled worker terminal while preserving its output")
+    release.add_argument("worker_id")
+    release.set_defaults(function=command_release)
+
     reconcile = commands.add_parser("reconcile", help="compare persisted records to live backends")
     reconcile.add_argument("--json", action="store_true")
     reconcile.set_defaults(function=command_reconcile)
+
+    resolve_failed = commands.add_parser("resolve-failed", help="release an unverifiable record that has no backend worker identifier")
+    resolve_failed.add_argument("worker_id")
+    resolve_failed.set_defaults(function=command_resolve_failed)
     return root
 
 

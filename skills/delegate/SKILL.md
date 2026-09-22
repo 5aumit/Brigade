@@ -57,10 +57,16 @@ Use the shared control plane:
 5stack worker status <id> --refresh
 5stack worker send <id> "Follow-up for this work unit"
 5stack worker open <id>
+5stack worker release <id>
 5stack worker reconcile
+5stack worker resolve-failed <id>
 ```
 
 The `--approved` flag records the User's approval. It is not a substitute for asking first. The default `new` worktree is conservative. Explicitly selecting `current` or an existing worktree requires checking occupancy first. Use `--allow-shared-worktree` only when the User explicitly accepts concurrent writers, and state that override in the dispatch contract.
+
+Use `resolve-failed` only for an `unverifiable` pre-launch record after confirming that no backend worker identifier was persisted. The command refuses records that could identify a launched worker and releases occupancy by marking only the rejected launch as failed.
+
+Use `release` after an Orca worker settles to close its retained agent terminal while preserving archived output. Releasing a terminal does not remove its child worktree. Worktree removal remains a separate destructive action that requires explicit User authority.
 
 Keep the primary usable. Do not block it on normal worker progress. Report completed, failed, blocked, disappeared, and decision-needed states to the User when reconciliation or native backend mail exposes them. A worker's completion report means only that the worker says implementation work is finished. It is not independent proof of correctness.
 

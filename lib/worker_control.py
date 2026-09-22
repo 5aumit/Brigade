@@ -41,6 +41,18 @@ class WorkerError(RuntimeError):
     pass
 
 
+class BackendCallError(WorkerError):
+    def __init__(self, message: str, payload: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.payload = payload
+
+
+class LaunchRejected(WorkerError):
+    def __init__(self, message: str, *, resources_may_exist: bool):
+        super().__init__(message)
+        self.resources_may_exist = resources_may_exist
+
+
 def now() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
 
@@ -100,13 +112,19 @@ def require_ok(result: Any, description: str) -> str:
 
 
 def json_output(command: list[str], description: str, *, cwd: str | None = None) -> dict[str, Any]:
-    output = require_ok(run(command, cwd=cwd), description)
+    result = run(command, cwd=cwd)
     try:
-        value = json.loads(output)
+        value = json.loads(result.stdout)
     except json.JSONDecodeError as error:
-        raise WorkerError(f"{description} did not return JSON: {output.strip()}") from error
+        if result.returncode:
+            detail = (result.stderr or result.stdout).strip()
+            raise BackendCallError(f"{description} failed: {detail or 'no output'}") from error
+        raise WorkerError(f"{description} did not return JSON: {result.stdout.strip()}") from error
+    if result.returncode:
+        detail = (result.stderr or result.stdout).strip()
+        raise BackendCallError(f"{description} failed: {detail or 'no output'}", value)
     if value.get("ok") is False:
-        raise WorkerError(f"{description} reported failure: {json.dumps(value)}")
+        raise BackendCallError(f"{description} reported failure: {json.dumps(value)}", value)
     return value
 
 
@@ -302,6 +320,40 @@ def named_object(value: Any, *names: str) -> dict[str, Any] | None:
     return None
 
 
+def find_key(value: Any, *names: str) -> tuple[bool, Any]:
+    if isinstance(value, dict):
+        for name in names:
+            if name in value:
+                return True, value[name]
+        for child in value.values():
+            found, candidate = find_key(child, *names)
+            if found:
+                return True, candidate
+    if isinstance(value, list):
+        for child in value:
+            found, candidate = find_key(child, *names)
+            if found:
+                return True, candidate
+    return False, None
+
+
+def orca_failure_may_have_resources(payload: dict[str, Any] | None) -> bool:
+    if not payload:
+        return True
+    if text_value(payload, "dispatchId", "dispatch_id") or named_object(payload, "dispatch"):
+        return True
+    residual_found, residual = find_key(payload, "residualResources", "residual_resources")
+    effects_found, effects = find_key(payload, "effects")
+    return not (residual_found and effects_found and not residual and not effects)
+
+
+def launch_failure_is_uncertain(worker: dict[str, Any], error: Exception) -> bool:
+    session = worker.get("backend_session", {})
+    return (
+        isinstance(error, LaunchRejected) and error.resources_may_exist
+    ) or bool(session.get("dispatch_id") or session.get("agent_start_attempted"))
+
+
 def dispatch_matches(row: Any, dispatch_id: str) -> bool:
     if not isinstance(row, dict):
         return False
@@ -316,9 +368,25 @@ def lifecycle_state(row: dict[str, Any]) -> str | None:
     values = [row.get("task_status"), row.get("taskStatus")]
     if isinstance(task, dict):
         values.extend([task.get("status"), task.get("state")])
+    values.extend([row.get("workerState"), row.get("worker_state"), row.get("dispatchStatus"), row.get("dispatch_status")])
     for value in values:
         if isinstance(value, str):
             return value.lower()
+    return None
+
+
+def orca_worker_show_lifecycle(response: dict[str, Any]) -> tuple[str, str] | None:
+    worker = named_object(response, "worker") or {}
+    dispatch = named_object(response, "dispatch") or {}
+    worker_state = worker.get("state")
+    dispatch_status = dispatch.get("status")
+    last_failure = dispatch.get("lastFailure") or dispatch.get("last_failure")
+    if worker_state == "stopped" and last_failure == "stopped":
+        return "stopped", "Orca reports that the worker was stopped."
+    if dispatch_status in {"succeeded", "success", "completed"}:
+        return "completed", f"Orca reports dispatch {dispatch_status}."
+    if dispatch_status == "failed":
+        return "failed", "Orca reports that the dispatch failed."
     return None
 
 
@@ -366,6 +434,9 @@ class Backend:
     def stop(self, worker: dict[str, Any]) -> str:
         raise NotImplementedError
 
+    def release(self, worker: dict[str, Any]) -> str:
+        raise NotImplementedError
+
     def read(self, worker: dict[str, Any]) -> str:
         raise NotImplementedError
 
@@ -379,8 +450,17 @@ class OrcaBackend(Backend):
             raise WorkerError("Orca CLI is not available through its documented resolution")
         return command
 
-    def call(self, arguments: list[str], description: str) -> dict[str, Any]:
-        return json_output([self.command(), *arguments, "--json"], description)
+    def call(self, arguments: list[str], description: str, *, cwd: str | None = None) -> dict[str, Any]:
+        return json_output([self.command(), *arguments, "--json"], description, cwd=cwd)
+
+    def existing_worktree_selector(self, path: str) -> str:
+        response = self.call(["worktree", "current"], "Resolve Orca worktree", cwd=path)
+        worktree = named_object(response, "worktree")
+        identity = named_object(worktree, "identity")
+        key = (identity or {}).get("key")
+        if not isinstance(key, str) or not key:
+            raise WorkerError("Orca did not return a stable identity for the selected worktree")
+        return f"identity:{key}"
 
     def launch(self, worker: dict[str, Any], worktree_mode: str, persist=None) -> LaunchResult:
         config = worker["configuration"]
@@ -392,16 +472,26 @@ class OrcaBackend(Backend):
         run_id = run.get("id") if run else None
         if not isinstance(run_id, str):
             raise WorkerError("Orca did not return a durable Run identifier")
-        worker["backend_session"] = {"run_id": run_id, "launch_started": True}
+        worker["backend_session"] = {"run_id": run_id}
         if persist:
             persist()
-        selected_worktree = "new-child" if worktree_mode == "new" else ("current" if worker["worktree"]["kind"] == "current" else f"path:{worker['worktree']['path']}")
+        if worktree_mode == "new":
+            selected_worktree = "new-child"
+        elif worker["worktree"]["kind"] == "current":
+            selected_worktree = "current"
+        else:
+            selected_worktree = self.existing_worktree_selector(worker["worktree"]["path"])
         arguments = [
             "orchestration", "worker-start", "--spec", worker["brief"], "--task-title", worker["task"]["title"],
             "--worktree", selected_worktree, "--run", run_id,
             "--agent", config["harness"], "--model", config["model"], "--effort", config["reasoning"],
         ]
-        response = self.call(arguments, "Launch Orca worker")
+        if worktree_mode == "new":
+            arguments.extend(["--name", f"5stack-{worker['id'].removeprefix('w_')}"])
+        try:
+            response = self.call(arguments, "Launch Orca worker")
+        except BackendCallError as error:
+            raise LaunchRejected(str(error), resources_may_exist=orca_failure_may_have_resources(error.payload)) from error
         dispatch = named_object(response, "dispatch")
         dispatch_id = text_value(response, "dispatchId", "dispatch_id") or (dispatch or {}).get("id")
         if not dispatch_id:
@@ -436,6 +526,9 @@ class OrcaBackend(Backend):
             return "unverifiable", f"Cannot inspect Orca worker: {error}"
         if nested(response, "agentWait", "agent_wait") is not None:
             return "blocked", "Orca observed the worker waiting for a human answer."
+        settled = orca_worker_show_lifecycle(response)
+        if settled:
+            return settled
         run_id = worker["backend_session"].get("run_id")
         if not run_id:
             return "unverifiable", "Worker has no persisted Orca Run identifier."
@@ -472,8 +565,8 @@ class OrcaBackend(Backend):
         state = lifecycle_state(row)
         if not state:
             return "unverifiable", "Orca lists the worker but did not expose a task lifecycle state."
-        mapping = {"succeeded": "completed", "success": "completed", "done": "completed", "completed": "completed", "failed": "failed", "blocked": "blocked", "stopped": "stopped", "active": "active", "working": "active", "running": "active", "pending": "active", "queued": "active", "unverifiable": "unverifiable"}
-        return mapping.get(state, "unverifiable"), f"Orca reports task {state}."
+        mapping = {"succeeded": "completed", "success": "completed", "done": "completed", "completed": "completed", "failed": "failed", "blocked": "blocked", "stopped": "stopped", "active": "active", "working": "active", "running": "active", "ready": "active", "starting": "active", "pending": "active", "queued": "active", "unverifiable": "unverifiable"}
+        return mapping.get(state, "unverifiable"), f"Orca reports worker lifecycle {state}."
 
     def send(self, worker: dict[str, Any], message: str) -> str:
         dispatch_id = worker["backend_session"]["dispatch_id"]
@@ -490,6 +583,10 @@ class OrcaBackend(Backend):
     def stop(self, worker: dict[str, Any]) -> str:
         self.call(["orchestration", "worker-stop", "--dispatch", worker["backend_session"]["dispatch_id"]], "Stop Orca worker")
         return "Orca fenced and stopped the supervised worker."
+
+    def release(self, worker: dict[str, Any]) -> str:
+        self.call(["orchestration", "worker-release", "--dispatch", worker["backend_session"]["dispatch_id"]], "Release Orca worker terminal")
+        return "Orca released the settled worker terminal. The child worktree remains available."
 
     def read(self, worker: dict[str, Any]) -> str:
         response = self.call(["orchestration", "worker-read", "--dispatch", worker["backend_session"]["dispatch_id"], "--source", "auto", "--limit", "120"], "Read Orca worker handoff")
@@ -546,6 +643,9 @@ class HerdrBackend(Backend):
         self.call(["agent", "send-keys", worker["backend_session"]["agent_name"], "ctrl+c"], "Interrupt Herdr worker")
         return "Sent Ctrl+C to the Herdr worker. Reconcile to confirm its settled state."
 
+    def release(self, worker: dict[str, Any]) -> str:
+        raise WorkerError("Herdr does not expose a separate retained-terminal release operation")
+
     def read(self, worker: dict[str, Any]) -> str:
         response = self.call(["agent", "read", worker["backend_session"]["agent_name"], "--source", "recent-unwrapped", "--lines", "120"], "Read Herdr worker handoff")
         return json.dumps(response.get("result", response), ensure_ascii=False)[:12000]
@@ -592,6 +692,16 @@ def reconcile_worker(worker: dict[str, Any]) -> tuple[str, str]:
             output = f"Handoff output unavailable: {error}"
         worker["handoff"] = {"at": now(), "status": status, "summary": detail, "output": output}
     return status, detail
+
+
+def resolve_failed_launch(worker: dict[str, Any]) -> None:
+    if worker.get("status") != "unverifiable":
+        raise WorkerError("Only an unverifiable worker can be resolved as a failed launch")
+    session = worker.get("backend_session", {})
+    resource_keys = ("dispatch_id", "task_id", "terminal_id", "agent_name", "pane_id")
+    if any(session.get(key) for key in resource_keys) or session.get("agent_started"):
+        raise WorkerError("Worker has a persisted backend resource and cannot be resolved as a pre-launch failure")
+    event(worker, "launch_resolved_failed", "No persisted backend worker identifier exists.", status="failed")
 
 
 def handoff(worker: dict[str, Any]) -> str:

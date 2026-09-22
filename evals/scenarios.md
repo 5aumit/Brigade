@@ -145,6 +145,12 @@ one.
 
 After approval, create a concise task brief rather than forwarding the conversation. Preserve the selected configuration in 5stack-owned state outside the target project. The worker may make MINOR adjacent changes, but must return MEANINGFUL findings and DECISION or CRITICAL matters to the primary. The primary remains usable while the worker runs. Do not create a commit, branch, pull request, merge, or remote change automatically.
 
+## 16. Orca dispatch rejection and retry
+
+**Fixture:** 5stack runs under WSL while Orca reports Windows worktree paths. An approved worker first uses a new Orca child, then an existing Git worktree. Orca rejects one pre-launch request without creating a Dispatch.
+
+**Expected:** A new child receives a deterministic `--name`. An existing worktree is resolved through Orca and selected by its stable identity, not its WSL path. A rejection that reports no Dispatch or residual worker resources becomes `failed` and releases writer occupancy. The same worktree can then be retried without a shared-writer override. A response that cannot establish whether resources were created remains `unverifiable`. After an operator stop, Orca's stopped lifecycle becomes `stopped`, not `unverifiable`. Releasing the settled worker closes its retained terminal without removing the child worktree.
+
 ## Recording a run
 
 For each run, note the Codex session identifier, 5stack commit, scenario, verdict, and one short observation. Keep temporary fixtures and transcripts outside the repository. Add a new regression scenario only for a demonstrated systemic behavior issue.
