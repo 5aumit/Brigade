@@ -199,10 +199,16 @@ class WorkerControlTests(unittest.TestCase):
     def test_orca_release_targets_exact_dispatch(self):
         backend = control.OrcaBackend()
         calls = []
-        backend.call = lambda arguments, _description: calls.append(arguments) or {"result": {}}
+        backend.call = lambda arguments, _description: calls.append(arguments) or {"result": {"state": "released"}}
         detail = backend.release({"backend_session": {"dispatch_id": "dispatch_123"}})
         self.assertEqual(calls, [["orchestration", "worker-release", "--dispatch", "dispatch_123"]])
         self.assertIn("child worktree remains", detail)
+
+    def test_orca_release_reports_retained_terminal(self):
+        backend = control.OrcaBackend()
+        backend.call = lambda _arguments, _description: {"result": {"state": "retained", "reason": "user_takeover"}}
+        with self.assertRaisesRegex(control.WorkerError, "retained \\(user_takeover\\)"):
+            backend.release({"backend_session": {"dispatch_id": "dispatch_123"}})
 
     def test_orca_backend_failure_is_unverifiable_not_disappeared(self):
         backend = control.OrcaBackend()

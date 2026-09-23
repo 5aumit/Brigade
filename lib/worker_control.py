@@ -582,7 +582,13 @@ class OrcaBackend(Backend):
         return "Orca fenced and stopped the supervised worker."
 
     def release(self, worker: dict[str, Any]) -> str:
-        self.call(["orchestration", "worker-release", "--dispatch", worker["backend_session"]["dispatch_id"]], "Release Orca worker terminal")
+        response = self.call(["orchestration", "worker-release", "--dispatch", worker["backend_session"]["dispatch_id"]], "Release Orca worker terminal")
+        result = response.get("result", {})
+        state = result.get("state")
+        if state not in {"released", "already_released"}:
+            reason = result.get("reason")
+            detail = f" ({reason})" if reason else ""
+            raise WorkerError(f"Orca did not close the worker terminal: {state or 'unknown state'}{detail}. Inspect the worker tab before closing it directly.")
         return "Orca released the settled worker terminal. The child worktree remains available."
 
     def read(self, worker: dict[str, Any]) -> str:
