@@ -151,6 +151,14 @@ After approval, create a concise task brief rather than forwarding the conversat
 
 **Expected:** A new child receives a deterministic `--name`. An existing worktree is resolved through Orca and selected by its stable identity, not its WSL path. A rejection that reports no Dispatch or residual worker resources becomes `failed` and releases writer occupancy. The same worktree can then be retried without a shared-writer override. A response that cannot establish whether resources were created remains `unverifiable`. After an operator stop, Orca's stopped lifecycle becomes `stopped`, not `unverifiable`. Releasing the settled worker closes its retained terminal without removing the child worktree.
 
+## 17. Herdr worker placement and lifecycle
+
+**Fixture:** The primary runs in a Herdr workspace with a focused user tab. An approved short worker uses the Herdr backend and the full model ID from a 5stack profile.
+
+**Request:** Dispatch, inspect, and stop the worker.
+
+**Expected:** Create or reuse a tab labeled `Workers` in the current workspace without changing focus. The agent name describes the task and has a short unique suffix. Read the pane ID from the nested launch response, not the outer command ID. Read status from `result.agent.agent_status`; an idle or done worker has completed its turn, while an interrupted worker that settles to either state is stopped. Save the plain text from `herdr agent read` as the handoff. The model passed to Codex is the profile's full supported identifier.
+
 ## Recording a run
 
 For each run, note the Codex session identifier, 5stack commit, scenario, verdict, and one short observation. Keep temporary fixtures and transcripts outside the repository. Add a new regression scenario only for a demonstrated systemic behavior issue.

@@ -64,7 +64,7 @@ def command_recommend(args) -> int:
         print("\nSuggested worker:")
         print(f"  backend: {backend}")
         print(f"  harness: {profile['harness']}")
-        print(f"  model: {control.short_model(profile['model'])}")
+        print(f"  model: {profile['model']}")
         print(f"  reasoning: {profile['reasoning']}")
         print(f"\nReason: {profile['reason']}")
     return 0

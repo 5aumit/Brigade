@@ -22,7 +22,7 @@ Ownership: DELEGATE
 Suggested worker:
   backend: current/default
   harness: codex
-  model: luna
+  model: gpt-5.6-luna
   reasoning: medium
 
 Reason: Localized implementation with straightforward verification.

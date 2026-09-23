@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import sys
@@ -259,23 +260,67 @@ class WorkerControlTests(unittest.TestCase):
 
     def test_herdr_launch_persists_pane_before_agent_start(self):
         backend = control.HerdrBackend()
-        worker = {"id": "w_abc", "worktree": {"path": "/repo"}, "configuration": {"model": "gpt-5.6-luna", "reasoning": "medium"}}
+        worker = {"id": "w_abc", "task": {"title": "Check dispatch"}, "worktree": {"path": "/repo"}, "configuration": {"model": "gpt-5.6-luna", "reasoning": "medium"}}
         snapshots = []
-        replies = iter([{"result": {"pane": {"pane_id": "w1:p2"}}}, control.WorkerError("start failed")])
+        calls = []
+        replies = iter([
+            {"id": "cli:tab:list", "result": {"tabs": []}},
+            {"id": "cli:tab:create", "result": {"tab": {"tab_id": "w1:t2"}, "root_pane": {"pane_id": "w1:p2"}}},
+            control.WorkerError("start failed"),
+        ])
 
-        def call(_arguments, _description):
+        def call(arguments, _description):
+            calls.append(arguments)
             reply = next(replies)
             if isinstance(reply, Exception):
                 raise reply
             return reply
 
         backend.call = call
-        with self.assertRaisesRegex(control.WorkerError, "start failed"):
-            backend.launch(worker, "new", lambda: snapshots.append(dict(worker["backend_session"])))
+        with mock.patch.dict(os.environ, {"HERDR_WORKSPACE_ID": "w1"}):
+            with self.assertRaisesRegex(control.WorkerError, "start failed"):
+                backend.launch(worker, "new", lambda: snapshots.append(dict(worker["backend_session"])))
+        self.assertEqual(calls[1], ["tab", "create", "--workspace", "w1", "--label", "Workers", "--cwd", "/repo", "--no-focus"])
         self.assertEqual(snapshots, [
-            {"agent_name": "worker-abc", "pane_id": "w1:p2", "agent_started": False, "agent_start_attempted": False},
-            {"agent_name": "worker-abc", "pane_id": "w1:p2", "agent_started": False, "agent_start_attempted": True},
+            {"agent_name": "w-check-dispatch-abc", "tab_id": "w1:t2", "pane_id": "w1:p2", "agent_started": False, "agent_start_attempted": False},
+            {"agent_name": "w-check-dispatch-abc", "tab_id": "w1:t2", "pane_id": "w1:p2", "agent_started": False, "agent_start_attempted": True},
         ])
+
+    def test_herdr_reuses_workers_tab_and_nested_pane_id(self):
+        backend = control.HerdrBackend()
+        worker = {"id": "w_def", "task": {"title": "60 second test"}, "brief": "Check", "worktree": {"path": "/repo"}, "configuration": {"model": "gpt-5.6-luna", "reasoning": "medium"}}
+        calls = []
+        replies = iter([
+            {"id": "cli:tab:list", "result": {"tabs": [{"label": "Workers", "tab_id": "w1:t2", "workspace_id": "w1"}]}},
+            {"id": "cli:pane:list", "result": {"panes": [{"pane_id": "w1:p2", "tab_id": "w1:t2"}]}},
+            {"id": "cli:pane:split", "result": {"pane": {"pane_id": "w1:p3"}}},
+            {"result": {}}, {"result": {}},
+        ])
+        backend.call = lambda arguments, _description: calls.append(arguments) or next(replies)
+        with mock.patch.dict(os.environ, {"HERDR_WORKSPACE_ID": "w1"}):
+            backend.launch(worker, "current")
+        self.assertEqual(calls[2], ["pane", "split", "w1:p2", "--direction", "right", "--cwd", "/repo", "--no-focus"])
+        self.assertEqual(calls[3][:6], ["agent", "start", "w-60-second-test-def", "--kind", "codex", "--pane"])
+        self.assertEqual(calls[3][6], "w1:p3")
+        self.assertIn("gpt-5.6-luna", calls[3])
+
+    def test_herdr_inspect_nested_status_after_stop(self):
+        backend = control.HerdrBackend()
+        worker = {"status": "active", "backend_session": {"agent_name": "w-check-abc"}}
+        backend.call = lambda _arguments, _description: {"id": "cli:agent:get", "result": {"agent": {"agent_status": "working"}}}
+        self.assertEqual(backend.inspect(worker), ("active", "Herdr reports working"))
+        backend.call = lambda _arguments, _description: {"id": "cli:agent:get", "result": {"agent": {"agent_status": "idle"}}}
+        self.assertEqual(backend.inspect(worker), ("completed", "Herdr reports idle"))
+        worker["status"] = "stopping"
+        backend.call = lambda _arguments, _description: {"id": "cli:agent:get", "result": {"agent": {"agent_status": "idle"}}}
+        self.assertEqual(backend.inspect(worker), ("stopped", "Herdr reports idle after interruption"))
+
+    def test_herdr_read_preserves_plain_text(self):
+        backend = control.HerdrBackend()
+        output = "Worker finished.\nNo files changed.\n"
+        with mock.patch.object(control, "run", return_value=control.subprocess.CompletedProcess([], 0, output, "")) as run:
+            self.assertEqual(backend.read({"backend_session": {"agent_name": "w-check-abc"}}), output)
+        run.assert_called_once_with(["herdr", "agent", "read", "w-check-abc", "--source", "recent-unwrapped", "--lines", "120"])
 
     def test_herdr_open_targets_agent_focus(self):
         backend = control.HerdrBackend()

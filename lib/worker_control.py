@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import uuid
@@ -173,10 +174,6 @@ def create_worktree(repository: dict[str, str], worker_id: str) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     require_ok(run(["git", "worktree", "add", "--detach", str(path), "HEAD"], cwd=repository["path"]), "Create worker worktree")
     return str(path.resolve())
-
-
-def short_model(model: str) -> str:
-    return model.removeprefix("gpt-5.6-")
 
 
 def choose_profile(
@@ -600,14 +597,30 @@ class HerdrBackend(Backend):
         return json_output(["herdr", *arguments], description)
 
     def launch(self, worker: dict[str, Any], worktree_mode: str, persist=None) -> LaunchResult:
-        # Herdr owns the visible pane and agent.  5stack selected the worktree
-        # before this call, so no worker can move itself elsewhere.
-        pane = self.call(["pane", "split", "--current", "--direction", "right", "--cwd", worker["worktree"]["path"], "--no-focus"], "Create Herdr worker pane")
-        pane_id = text_value(pane, "pane_id", "paneId", "id")
-        if not pane_id:
-            raise WorkerError("Herdr did not return a pane identifier")
-        name = f"worker-{worker['id'].replace('w_', '')[:20]}"
-        worker["backend_session"] = {"agent_name": name, "pane_id": pane_id, "agent_started": False, "agent_start_attempted": False}
+        workspace_id = os.environ.get("HERDR_WORKSPACE_ID")
+        if not workspace_id:
+            raise WorkerError("Herdr did not provide the current workspace identifier")
+        tabs = self.call(["tab", "list", "--workspace", workspace_id], "Find Herdr Workers tab")
+        existing = next((tab for tab in tabs.get("result", {}).get("tabs", [])
+                         if tab.get("label") == "Workers" and tab.get("workspace_id") == workspace_id), None)
+        if existing:
+            tab_id = existing["tab_id"]
+            panes = self.call(["pane", "list", "--workspace", workspace_id], "Find Workers tab pane")
+            anchor = next((pane.get("pane_id") for pane in panes.get("result", {}).get("panes", [])
+                           if pane.get("tab_id") == tab_id), None)
+            if not anchor:
+                raise WorkerError("Herdr Workers tab has no pane")
+            pane = self.call(["pane", "split", anchor, "--direction", "right", "--cwd", worker["worktree"]["path"], "--no-focus"], "Create Herdr worker pane")
+            pane_id = text_value(pane.get("result", {}).get("pane", {}), "pane_id")
+        else:
+            created = self.call(["tab", "create", "--workspace", workspace_id, "--label", "Workers", "--cwd", worker["worktree"]["path"], "--no-focus"], "Create Herdr Workers tab")
+            tab_id = text_value(created.get("result", {}).get("tab", {}), "tab_id")
+            pane_id = text_value(created.get("result", {}).get("root_pane", {}), "pane_id")
+        if not tab_id or not pane_id:
+            raise WorkerError("Herdr did not return tab and pane identifiers")
+        title = re.sub(r"[^a-z0-9]+", "-", worker["task"]["title"].lower()).strip("-") or "task"
+        name = f"w-{title[:16].rstrip('-')}-{worker['id'].removeprefix('w_')[:12]}"
+        worker["backend_session"] = {"agent_name": name, "tab_id": tab_id, "pane_id": pane_id, "agent_started": False, "agent_start_attempted": False}
         if persist:
             persist()
         config = worker["configuration"]
@@ -619,7 +632,7 @@ class HerdrBackend(Backend):
         if persist:
             persist()
         self.call(["agent", "prompt", name, worker["brief"]], "Send Herdr worker brief")
-        return LaunchResult({"agent_name": name, "pane_id": pane_id}, worker["worktree"]["path"])
+        return LaunchResult({"agent_name": name, "tab_id": tab_id, "pane_id": pane_id}, worker["worktree"]["path"])
 
     def inspect(self, worker: dict[str, Any]) -> tuple[str, str]:
         name = worker["backend_session"]["agent_name"]
@@ -627,8 +640,10 @@ class HerdrBackend(Backend):
             response = self.call(["agent", "get", name], "Inspect Herdr worker")
         except WorkerError as error:
             return "disappeared", str(error)
-        state = (text_value(response, "state", "status") or "unknown").lower()
-        mapping = {"done": "completed", "idle": "active", "working": "active", "blocked": "blocked", "unknown": "active"}
+        state = (text_value(response.get("result", {}).get("agent", {}), "agent_status") or "unknown").lower()
+        if worker.get("status") == "stopping" and state in {"idle", "done"}:
+            return "stopped", f"Herdr reports {state} after interruption"
+        mapping = {"done": "completed", "idle": "completed", "working": "active", "blocked": "blocked", "unknown": "active"}
         return mapping.get(state, "active"), f"Herdr reports {state}"
 
     def send(self, worker: dict[str, Any], message: str) -> str:
@@ -647,8 +662,8 @@ class HerdrBackend(Backend):
         raise WorkerError("Herdr does not expose a separate retained-terminal release operation")
 
     def read(self, worker: dict[str, Any]) -> str:
-        response = self.call(["agent", "read", worker["backend_session"]["agent_name"], "--source", "recent-unwrapped", "--lines", "120"], "Read Herdr worker handoff")
-        return json.dumps(response.get("result", response), ensure_ascii=False)[:12000]
+        command = ["herdr", "agent", "read", worker["backend_session"]["agent_name"], "--source", "recent-unwrapped", "--lines", "120"]
+        return require_ok(run(command), "Read Herdr worker handoff")[:12000]
 
 
 def backend_for(name: str) -> Backend:
