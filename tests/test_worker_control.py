@@ -329,6 +329,45 @@ class WorkerControlTests(unittest.TestCase):
         backend.open({"backend_session": {"agent_name": "worker-abc", "pane_id": "w1:p2"}})
         self.assertEqual(calls, [["agent", "focus", "worker-abc"]])
 
+    def test_herdr_release_closes_only_worker_pane_when_tab_is_shared(self):
+        backend = control.HerdrBackend()
+        calls = []
+        replies = iter([
+            {"result": {"panes": [
+                {"pane_id": "w1:p2", "tab_id": "w1:t2"},
+                {"pane_id": "w1:p3", "tab_id": "w1:t2"},
+            ]}},
+            {"result": {"agents": [{"pane_id": "w1:p2", "name": "worker-abc"}]}},
+            {"result": {}},
+        ])
+        backend.call = lambda arguments, _description: calls.append(arguments) or next(replies)
+        detail = backend.release({"backend_session": {"agent_name": "worker-abc", "pane_id": "w1:p2", "tab_id": "w1:t2"}})
+        self.assertEqual(calls, [["pane", "list", "--workspace", "w1"], ["agent", "list"], ["pane", "close", "w1:p2"]])
+        self.assertIn("worker pane", detail)
+
+    def test_herdr_release_closes_last_worker_pane_with_tab(self):
+        backend = control.HerdrBackend()
+        calls = []
+        replies = iter([
+            {"result": {"panes": [{"pane_id": "w1:p2", "tab_id": "w1:t2"}]}},
+            {"result": {"agents": [{"pane_id": "w1:p2", "name": "worker-abc"}]}},
+            {"result": {"tabs": [{"tab_id": "w1:t2", "label": "Workers"}]}},
+            {"result": {}},
+        ])
+        backend.call = lambda arguments, _description: calls.append(arguments) or next(replies)
+        backend.release({"backend_session": {"agent_name": "worker-abc", "pane_id": "w1:p2", "tab_id": "w1:t2"}})
+        self.assertEqual(calls[-1], ["tab", "close", "w1:t2"])
+
+    def test_herdr_release_rejects_repurposed_pane(self):
+        backend = control.HerdrBackend()
+        replies = iter([
+            {"result": {"panes": [{"pane_id": "w1:p2", "tab_id": "w1:t2"}]}},
+            {"result": {"agents": [{"pane_id": "w1:p2", "name": "someone-else"}]}},
+        ])
+        backend.call = lambda _arguments, _description: next(replies)
+        with self.assertRaisesRegex(control.WorkerError, "no longer contains"):
+            backend.release({"backend_session": {"agent_name": "worker-abc", "pane_id": "w1:p2", "tab_id": "w1:t2"}})
+
     def test_orca_linux_resolution_avoids_bare_orca(self):
         previous_command = os.environ.pop("ORCA_CLI_COMMAND", None)
         previous_dev = os.environ.pop("ORCA_DEV_REPO_ROOT", None)

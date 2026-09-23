@@ -66,7 +66,7 @@ The `--approved` flag records the User's approval. It is not a substitute for as
 
 Use `resolve-failed` only for an `unverifiable` pre-launch record after confirming that no backend worker identifier was persisted. The command refuses records that could identify a launched worker and releases occupancy by marking only the rejected launch as failed.
 
-Use `release` after an Orca worker settles to close its retained agent terminal while preserving archived output. Releasing a terminal does not remove its child worktree. Worktree removal remains a separate destructive action that requires explicit User authority.
+Use `release` after a worker settles. For Orca, it closes the retained agent terminal while preserving archived output. For Herdr, it closes the worker pane, or the Workers tab when that pane is the last one. Releasing a worker does not remove its child worktree. Worktree removal remains a separate destructive action that requires explicit User authority.
 
 Keep the primary usable. Do not block it on normal worker progress. Report completed, failed, blocked, disappeared, and decision-needed states to the User when reconciliation or native backend mail exposes them. A worker's completion report means only that the worker says implementation work is finished. It is not independent proof of correctness.
 

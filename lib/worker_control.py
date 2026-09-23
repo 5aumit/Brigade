@@ -659,7 +659,29 @@ class HerdrBackend(Backend):
         return "Sent Ctrl+C to the Herdr worker. Reconcile to confirm its settled state."
 
     def release(self, worker: dict[str, Any]) -> str:
-        raise WorkerError("Herdr does not expose a separate retained-terminal release operation")
+        session = worker["backend_session"]
+        pane_id, tab_id = session.get("pane_id"), session.get("tab_id")
+        if not pane_id or not tab_id:
+            raise WorkerError("Herdr worker has no recorded pane and tab identifiers")
+        workspace_id = tab_id.split(":", 1)[0]
+        panes = self.call(["pane", "list", "--workspace", workspace_id], "Find Herdr worker pane")
+        tab_panes = [pane for pane in panes.get("result", {}).get("panes", []) if pane.get("tab_id") == tab_id]
+        target = next((pane for pane in tab_panes if pane.get("pane_id") == pane_id), None)
+        if target is None:
+            return "Herdr worker pane is already closed."
+        agents = self.call(["agent", "list"], "Verify Herdr worker identity")
+        occupant = next((agent for agent in agents.get("result", {}).get("agents", []) if agent.get("pane_id") == pane_id), None)
+        if occupant and occupant.get("name") != session.get("agent_name"):
+            raise WorkerError("Herdr pane no longer contains the recorded worker")
+        if len(tab_panes) == 1:
+            tabs = self.call(["tab", "list", "--workspace", workspace_id], "Verify Herdr Workers tab")
+            tab = next((tab for tab in tabs.get("result", {}).get("tabs", []) if tab.get("tab_id") == tab_id), None)
+            if not tab or tab.get("label") != "Workers":
+                raise WorkerError("Herdr worker tab is no longer the Workers tab")
+            self.call(["tab", "close", tab_id], "Close Herdr Workers tab")
+            return "Closed the settled Herdr worker and its empty Workers tab."
+        self.call(["pane", "close", pane_id], "Close Herdr worker pane")
+        return "Closed the settled Herdr worker pane."
 
     def read(self, worker: dict[str, Any]) -> str:
         command = ["herdr", "agent", "read", worker["backend_session"]["agent_name"], "--source", "recent-unwrapped", "--lines", "120"]
