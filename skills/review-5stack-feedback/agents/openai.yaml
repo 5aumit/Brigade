@@ -1,6 +1,0 @@
-interface:
-  display_name: "Review 5stack Feedback"
-  short_description: "Investigate a pasted 5stack feedback handoff"
-  default_prompt: "Use $review-5stack-feedback to review this feedback about 5stack: "
-policy:
-  allow_implicit_invocation: false

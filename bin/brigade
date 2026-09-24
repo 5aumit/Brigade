@@ -3,4 +3,4 @@ set -euo pipefail
 
 SCRIPT_PATH=$(readlink -f -- "${BASH_SOURCE[0]}")
 BRIGADE_ROOT=$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)
-exec "$BRIGADE_ROOT/bin/brigade" "$@"
+exec python3 "$BRIGADE_ROOT/scripts/worker.py" "$@"

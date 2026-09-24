@@ -3,7 +3,7 @@ name: code-review
 description: Independently review a fixed software change for behavior, evidence, scope, complexity, maintainability, and human ownership.
 ---
 
-# Independent 5stack review
+# Independent Brigade review
 
 Resolve the review range from the user's fixed point, implementation checkpoint, referenced branch or PR, or the current task diff. Include relevant uncommitted task changes when requested. Verify that the range exists and is not empty.
 
@@ -27,4 +27,4 @@ Aggregate into one verdict. Rank findings as blocking, important, or optional. C
 
 Fix only when the user or an active implementation workflow authorizes fixes. After important fixes, re-review those findings once. Do not loop over naming or style preferences.
 
-Report the review in the current session or in the normal project deliverable the user requested. Do not create a 5stack-specific review artifact.
+Report the review in the current session or in the normal project deliverable the user requested. Do not create a Brigade-specific review artifact.

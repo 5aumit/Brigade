@@ -13,6 +13,7 @@ fail() {
 for required in \
   AGENTS.md \
   README.md \
+  bin/brigade \
   bin/5stack \
   lib/worker_control.py \
   references/trust-handoff.md \
@@ -37,7 +38,7 @@ done
 duplicates=$(printf '%s\n' "${skill_names[@]}" | sort | uniq -d)
 [[ -z "$duplicates" ]] || fail "duplicate skill names: $duplicates"
 
-for skill in give-5stack-feedback reflect-5stack review-5stack-feedback; do
+for skill in give-brigade-feedback reflect-brigade review-brigade-feedback; do
   skill_file="$STACK_REPO/skills/$skill/SKILL.md"
   ui_file="$STACK_REPO/skills/$skill/agents/openai.yaml"
   grep -qx 'disable-model-invocation: true' "$skill_file" || fail "$skill must require explicit invocation"
@@ -60,7 +61,6 @@ if LC_ALL=C grep -RIl $'\342\200\224' \
   "$STACK_REPO/README.md" \
   "$STACK_REPO/references" \
   "$STACK_REPO/skills" \
-  "$STACK_REPO/templates" \
   "$STACK_REPO/evals" >/dev/null; then
   fail "em dash character found"
 fi
@@ -68,6 +68,7 @@ fi
 bash -n "$STACK_REPO/scripts/install.sh"
 bash -n "$STACK_REPO/scripts/uninstall.sh"
 bash -n "$STACK_REPO/scripts/check.sh"
+bash -n "$STACK_REPO/bin/brigade"
 bash -n "$STACK_REPO/bin/5stack"
 python3 -m py_compile "$STACK_REPO/lib/worker_control.py" "$STACK_REPO/scripts/worker.py"
 python3 -m unittest discover -s "$STACK_REPO/tests"
@@ -79,60 +80,60 @@ case "$CHECK_TMP" in
 esac
 trap 'rm -rf -- "$CHECK_TMP"' EXIT
 
-TEST_AGENTS_DIR="$CHECK_TMP/agents"
+TEST_AGENTS_DIR="$CHECK_TMP/upgrade-agents"
 TEST_BIN_DIR="$CHECK_TMP/bin"
-mkdir -p "$TEST_AGENTS_DIR/skills/implement"
-printf 'original global instructions\n' > "$TEST_AGENTS_DIR/AGENTS.md"
-printf 'original implement skill\n' > "$TEST_AGENTS_DIR/skills/implement/SKILL.md"
 
 EMPTY_AGENTS_DIR="$CHECK_TMP/empty-agents"
-if bash "$STACK_REPO/scripts/install.sh" --agents-dir "$EMPTY_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null 2>&1; then
+FRESH_BIN_DIR="$CHECK_TMP/fresh-bin"
+if bash "$STACK_REPO/scripts/install.sh" --agents-dir "$EMPTY_AGENTS_DIR" --bin-dir "$FRESH_BIN_DIR" >/dev/null 2>&1; then
   fail "installer created AGENTS.md without confirmation"
 fi
 [[ ! -e "$EMPTY_AGENTS_DIR/AGENTS.md" && ! -L "$EMPTY_AGENTS_DIR/AGENTS.md" ]] || fail "installer changed empty agents directory without confirmation"
-bash "$STACK_REPO/scripts/install.sh" --yes --agents-dir "$EMPTY_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null
+bash "$STACK_REPO/scripts/install.sh" --yes --agents-dir "$EMPTY_AGENTS_DIR" --bin-dir "$FRESH_BIN_DIR" >/dev/null
 [[ -L "$EMPTY_AGENTS_DIR/AGENTS.md" ]] || fail "installer did not create AGENTS.md with explicit approval"
+[[ -L "$EMPTY_AGENTS_DIR/brigade" ]] || fail "installer did not link the Brigade repository"
+[[ -L "$FRESH_BIN_DIR/brigade" ]] || fail "installer did not link the Brigade command"
+[[ -L "$FRESH_BIN_DIR/5stack" ]] || fail "installer did not link the legacy 5stack command"
+XDG_STATE_HOME="$CHECK_TMP/fresh-state" "$FRESH_BIN_DIR/brigade" worker list >/dev/null || fail "installed Brigade command did not run"
+XDG_STATE_HOME="$CHECK_TMP/fresh-state" "$FRESH_BIN_DIR/5stack" worker list >/dev/null || fail "installed legacy 5stack command did not run"
+mkdir -p "$CHECK_TMP/legacy-state/5stack"
+printf '{"version": 1, "workers": [{"id": "w_legacy"}]}\n' > "$CHECK_TMP/legacy-state/5stack/workers.json"
+XDG_STATE_HOME="$CHECK_TMP/legacy-state" "$FRESH_BIN_DIR/brigade" worker list --json | grep -q 'w_legacy' || fail "Brigade did not retain legacy worker history"
 
-if bash "$STACK_REPO/scripts/install.sh" --agents-dir "$TEST_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null 2>&1; then
-  fail "installer replaced AGENTS.md without confirmation"
-fi
-grep -q 'original global instructions' "$TEST_AGENTS_DIR/AGENTS.md" || fail "installer changed AGENTS.md after missing confirmation"
-[[ ! -e "$TEST_AGENTS_DIR/5stack" && ! -L "$TEST_AGENTS_DIR/5stack" ]] || fail "installer changed files before confirmation"
+mkdir -p "$TEST_BIN_DIR" "$TEST_AGENTS_DIR/skills" "$TEST_AGENTS_DIR/5stack-backups/v1/skills" "$TEST_AGENTS_DIR/5stack-backups/v1/bin"
+printf 'original global instructions\n' > "$TEST_AGENTS_DIR/5stack-backups/v1/AGENTS.md"
+printf 'original old root\n' > "$TEST_AGENTS_DIR/5stack-backups/v1/root"
+printf 'original feedback skill\n' > "$TEST_AGENTS_DIR/5stack-backups/v1/skills/give-5stack-feedback"
+printf 'original 5stack command\n' > "$TEST_AGENTS_DIR/5stack-backups/v1/bin/5stack"
+ln -s "$STACK_REPO/AGENTS.md" "$TEST_AGENTS_DIR/AGENTS.md"
+ln -s "$STACK_REPO" "$TEST_AGENTS_DIR/5stack"
+ln -s "$STACK_REPO/skills/give-5stack-feedback" "$TEST_AGENTS_DIR/skills/give-5stack-feedback"
+ln -s "$STACK_REPO/bin/5stack" "$TEST_BIN_DIR/5stack"
 
-bash "$STACK_REPO/scripts/install.sh" --yes --agents-dir "$TEST_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null
+bash "$STACK_REPO/scripts/install.sh" --agents-dir "$TEST_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null
 [[ -L "$TEST_AGENTS_DIR/AGENTS.md" ]] || fail "installer did not link AGENTS.md"
-[[ -L "$TEST_AGENTS_DIR/5stack" ]] || fail "installer did not link the 5stack repository"
+[[ -L "$TEST_AGENTS_DIR/brigade" ]] || fail "installer did not link the Brigade repository"
+[[ -f "$TEST_AGENTS_DIR/5stack" ]] || fail "installer did not restore legacy root backup"
+grep -q 'original old root' "$TEST_AGENTS_DIR/5stack" || fail "installer restored wrong legacy root backup"
+[[ -f "$TEST_AGENTS_DIR/skills/give-5stack-feedback" ]] || fail "installer did not restore legacy feedback backup"
+grep -q 'original feedback skill' "$TEST_AGENTS_DIR/skills/give-5stack-feedback" || fail "installer restored wrong legacy feedback backup"
+[[ -L "$TEST_BIN_DIR/brigade" ]] || fail "installer did not link the Brigade command"
 [[ -L "$TEST_BIN_DIR/5stack" ]] || fail "installer did not link the 5stack command"
-XDG_STATE_HOME="$CHECK_TMP/state" "$TEST_BIN_DIR/5stack" worker list >/dev/null || fail "installed 5stack command did not run"
 for skill in "${OWNED_SKILLS[@]}"; do
   [[ -L "$TEST_AGENTS_DIR/skills/$skill" ]] || fail "installer did not link $skill"
 done
 
-mkdir -p "$TEST_AGENTS_DIR/5stack-backups/v1/skills/feedback"
-printf 'original feedback skill\n' > "$TEST_AGENTS_DIR/5stack-backups/v1/skills/feedback/SKILL.md"
-ln -s "$STACK_REPO/skills/5stack-setup" "$TEST_AGENTS_DIR/skills/5stack-setup"
-ln -s "$STACK_REPO/skills/feedback" "$TEST_AGENTS_DIR/skills/feedback"
-ln -s "$STACK_REPO/skills/reflect" "$TEST_AGENTS_DIR/skills/reflect"
-
-bash "$STACK_REPO/scripts/install.sh" --yes --agents-dir "$TEST_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null
-[[ ! -e "$TEST_AGENTS_DIR/skills/5stack-setup" && ! -L "$TEST_AGENTS_DIR/skills/5stack-setup" ]] || fail "installer left legacy 5stack-setup"
-[[ -f "$TEST_AGENTS_DIR/skills/feedback/SKILL.md" ]] || fail "installer did not restore legacy feedback backup"
-[[ ! -e "$TEST_AGENTS_DIR/skills/reflect" && ! -L "$TEST_AGENTS_DIR/skills/reflect" ]] || fail "installer left legacy reflect"
-grep -q 'original feedback skill' "$TEST_AGENTS_DIR/skills/feedback/SKILL.md" || fail "installer restored wrong legacy feedback backup"
-
 bash "$STACK_REPO/scripts/uninstall.sh" --agents-dir "$TEST_AGENTS_DIR" --bin-dir "$TEST_BIN_DIR" >/dev/null
 [[ -f "$TEST_AGENTS_DIR/AGENTS.md" ]] || fail "uninstaller did not restore AGENTS.md"
-[[ ! -e "$TEST_AGENTS_DIR/5stack" && ! -L "$TEST_AGENTS_DIR/5stack" ]] || fail "uninstaller left the 5stack repository link"
-[[ ! -e "$TEST_BIN_DIR/5stack" && ! -L "$TEST_BIN_DIR/5stack" ]] || fail "uninstaller left the 5stack command"
+[[ ! -e "$TEST_AGENTS_DIR/brigade" && ! -L "$TEST_AGENTS_DIR/brigade" ]] || fail "uninstaller left the Brigade repository link"
+[[ -f "$TEST_AGENTS_DIR/5stack" ]] || fail "uninstaller removed restored legacy root"
+[[ ! -e "$TEST_BIN_DIR/brigade" && ! -L "$TEST_BIN_DIR/brigade" ]] || fail "uninstaller left the Brigade command"
+[[ -f "$TEST_BIN_DIR/5stack" ]] || fail "uninstaller did not restore legacy 5stack command"
 for skill in "${OWNED_SKILLS[@]}"; do
-  if [[ "$skill" == "implement" ]]; then
-    [[ -f "$TEST_AGENTS_DIR/skills/implement/SKILL.md" ]] || fail "uninstaller did not restore implement"
-  else
-    [[ ! -e "$TEST_AGENTS_DIR/skills/$skill" && ! -L "$TEST_AGENTS_DIR/skills/$skill" ]] || fail "uninstaller left $skill"
-  fi
+  [[ ! -e "$TEST_AGENTS_DIR/skills/$skill" && ! -L "$TEST_AGENTS_DIR/skills/$skill" ]] || fail "uninstaller left $skill"
 done
 grep -q 'original global instructions' "$TEST_AGENTS_DIR/AGENTS.md" || fail "wrong AGENTS.md restored"
-grep -q 'original implement skill' "$TEST_AGENTS_DIR/skills/implement/SKILL.md" || fail "wrong implement skill restored"
-grep -q 'original feedback skill' "$TEST_AGENTS_DIR/skills/feedback/SKILL.md" || fail "uninstaller changed restored legacy feedback backup"
+grep -q 'original feedback skill' "$TEST_AGENTS_DIR/skills/give-5stack-feedback" || fail "uninstaller changed restored legacy feedback backup"
+grep -q 'original 5stack command' "$TEST_BIN_DIR/5stack" || fail "uninstaller restored wrong 5stack command backup"
 
-echo "5stack static and installer checks passed."
+echo "Brigade static and installer checks passed."

@@ -14,4 +14,4 @@ As decisions settle:
 - use the project's existing decision convention when the request includes documenting decisions;
 - otherwise keep the settled decisions and remaining uncertainty in the current session handoff.
 
-Do not create documentation merely because this workflow ran. Do not create a 5stack-specific decision system.
+Do not create documentation merely because this workflow ran. Do not create a Brigade-specific decision system.

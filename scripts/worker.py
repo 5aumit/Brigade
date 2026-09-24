@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Command line entry point for the 5stack worker control plane."""
+"""Command line entry point for the Brigade worker control plane."""
 
 from __future__ import annotations
 
@@ -220,7 +220,7 @@ def command_resolve_failed(args) -> int:
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(prog="5stack", description="5stack worker control plane")
+    root = argparse.ArgumentParser(prog="brigade", description="Brigade worker control plane")
     groups = root.add_subparsers(dest="group", required=True)
     worker = groups.add_parser("worker", help="dispatch and supervise bounded coding workers")
     commands = worker.add_subparsers(dest="command", required=True)

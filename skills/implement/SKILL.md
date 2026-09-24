@@ -3,7 +3,7 @@ name: implement
 description: Implement a clear software task with proportionate evidence, optional checkpoints and review, and a trust-oriented handoff.
 ---
 
-# Implement with 5stack
+# Implement with Brigade
 
 An explicit user invocation of `/implement` authorizes local implementation and review-fix checkpoint commits for the current task. It does not authorize branches, worktrees, pushes, merges, pull requests, or remote changes. If this skill was selected implicitly, do not infer commit authority.
 
@@ -30,4 +30,4 @@ For substantial work with commit authority:
 
 Skip ceremonial commits or review for small LIGHT work.
 
-Finish with the trust handoff scaled to the task. Do not create 5stack-specific project artifacts.
+Finish with the trust handoff scaled to the task. Do not create Brigade-specific project artifacts.

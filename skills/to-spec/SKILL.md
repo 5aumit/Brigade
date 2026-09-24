@@ -3,7 +3,7 @@ name: to-spec
 description: Turn sufficiently settled requirements into a concise engineering spec that forecasts evidence, abstraction cost, and human attention.
 ---
 
-# Write a 5stack spec
+# Write a Brigade spec
 
 Inspect the repository, relevant existing documentation, and referenced issues or prior discussion. If a material decision is still hidden, state it and recommend grilling instead of pretending the work is ready.
 

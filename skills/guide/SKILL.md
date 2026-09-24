@@ -46,11 +46,11 @@ First, state its immediate disposition:
 - **Ready to act:** the behavior is clear enough to implement once the user authorizes the work. A thought dump alone does not authorize code changes.
 - **Defer:** it does not currently earn attention.
 
-Then assign the explicit 5stack ownership level to the resulting work:
+Then assign the explicit Brigade ownership level to the resulting work:
 
-- **DELEGATE:** after the User approves the work, explain why they do not need to read its code or raw output, and what evidence the agent will bring back.
-- **REVIEW:** state the behavior or component the User will likely review, why it matters, and a rough LOC estimate. After inspection or implementation, give exact files, functions, and line ranges.
-- **UNDERSTAND:** list the behavior, policy, measurement, or component the User will need to understand. Explain why it matters and give the expected review surface or rough LOC estimate when code is involved.
+- **DELEGATE:** after the Chef approves the work, explain why they do not need to read its code or raw output, and what evidence Expo will bring back.
+- **REVIEW:** state the behavior or component the Chef will likely review, why it matters, and a rough LOC estimate. After inspection or implementation, give exact files, functions, and line ranges.
+- **UNDERSTAND:** list the behavior, policy, measurement, or component the Chef will need to understand. Explain why it matters and give the expected review surface or rough LOC estimate when code is involved.
 
 Set LIGHT, STANDARD, or HIGH assurance alongside the ownership level. Do not use ownership labels to obscure a user decision: a decision remains **Discuss** even if its eventual implementation could be delegated.
 
@@ -58,7 +58,7 @@ Separate what needs the user from what the agent can do independently:
 
 - The user owns material product, policy, methodology, and risk decisions.
 - The agent owns repository investigation, evidence gathering, diagnosis, and bounded research that does not make those decisions.
-- Guide may inspect existing repository evidence to make its recommendation. It must ask the User before starting a separate investigation, audit, implementation task, or external action, including DELEGATE work.
+- Guide may inspect existing repository evidence to make its recommendation. Expo must ask the Chef before starting a separate investigation, audit, implementation task, or external action, including DELEGATE work.
 
 Do not claim to objectively determine product priorities. Make a recommendation from the user's stated outcome and evidence, and surface the decision if the ranking depends on a value judgment.
 
@@ -73,6 +73,6 @@ Use a compact result:
 - **Near-term outcome:** what the priority serves.
 - **Working order:** Now, Supporting, Next, and Later with concise reasons.
 - **Attention map:** for each active concern, its disposition, assurance, ownership, the concrete user attention needed, and what the agent can take independently.
-- **Ownership summary:** a short, cordial explanation of what the User does not need to worry about, may need to review, and should make time to understand.
+- **Ownership summary:** a short, cordial explanation of what the Chef does not need to worry about, may need to review, and should make time to understand.
 - **Tracking:** whether durable tracking earns its cost.
 - **Recommended next move:** one concrete action, with assurance and ownership, followed by a clear request for permission before the agent starts it.

@@ -1,4 +1,4 @@
-"""Small, durable worker control plane for 5stack.
+"""Small, durable worker control plane for Brigade.
 
 This module owns generic worker records and routes backend-specific operations
 through adapters.  It deliberately does not schedule, retry, or clean up work.
@@ -60,7 +60,11 @@ def now() -> str:
 
 def state_path() -> Path:
     root = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
-    return root / "5stack" / "workers.json"
+    brigade = root / "brigade" / "workers.json"
+    legacy = root / "5stack" / "workers.json"
+    if brigade.exists() and legacy.exists():
+        raise WorkerError(f"Worker state exists in both {brigade} and {legacy}. Resolve the duplicate files before using Brigade.")
+    return brigade if brigade.exists() or not legacy.exists() else legacy
 
 
 def load_state(path: Path | None = None) -> dict[str, Any]:
@@ -464,7 +468,7 @@ class OrcaBackend(Backend):
         run_response = self.call(["orchestration", "run-current"], "Inspect Orca run")
         run = named_object(run_response, "run")
         if not run or not isinstance(run.get("id"), str):
-            run_response = self.call(["orchestration", "run-create", "--objective", f"5stack worker: {worker['task']['title']}"], "Create Orca run")
+            run_response = self.call(["orchestration", "run-create", "--objective", f"Brigade worker: {worker['task']['title']}"], "Create Orca run")
             run = named_object(run_response, "run")
         run_id = run.get("id") if run else None
         if not isinstance(run_id, str):
@@ -484,7 +488,7 @@ class OrcaBackend(Backend):
             "--agent", config["harness"], "--model", config["model"], "--effort", config["reasoning"],
         ]
         if worktree_mode == "new":
-            arguments.extend(["--name", f"5stack-{worker['id'].removeprefix('w_')}"])
+            arguments.extend(["--name", f"brigade-{worker['id'].removeprefix('w_')}"])
         try:
             response = self.call(arguments, "Launch Orca worker")
         except BackendCallError as error:
@@ -567,7 +571,7 @@ class OrcaBackend(Backend):
 
     def send(self, worker: dict[str, Any], message: str) -> str:
         dispatch_id = worker["backend_session"]["dispatch_id"]
-        self.call(["orchestration", "send", "--to", f"dispatch:{dispatch_id}", "--subject", "5stack follow-up", "--body", message, "--type", "status"], "Send Orca worker message")
+        self.call(["orchestration", "send", "--to", f"dispatch:{dispatch_id}", "--subject", "Brigade follow-up", "--body", message, "--type", "status"], "Send Orca worker message")
         return "Follow-up delivered through Orca orchestration mail."
 
     def open(self, worker: dict[str, Any]) -> str:

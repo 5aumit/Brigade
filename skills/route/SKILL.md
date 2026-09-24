@@ -19,7 +19,7 @@ Consider:
 
 Possible recommendations include direct work, a short plan, grilling, a spec, tickets, debugging, TDD, independent review, manual review, feedback capture, retrospective reflection, or a relevant installed skill.
 
-When one bounded coding worker would materially help, the route result may include a suggested backend, harness, model, and reasoning profile. This is a recommendation only. It never authorizes dispatch. The primary must still ask the User for explicit permission for that specific worker.
+When one bounded coding worker would materially help, the route result may include a suggested backend, harness, model, and reasoning profile. This is a recommendation only. It never authorizes dispatch. Expo must still ask the Chef for explicit permission for that specific worker.
 
 Prefer direct implementation for small clear tasks. Recommend added process only when its benefit exceeds its cost.
 
@@ -31,4 +31,4 @@ Use a compact result:
 - **Ownership forecast:** DELEGATE, REVIEW, or UNDERSTAND.
 - **Added process:** only steps that earn their cost, or `None`.
 
-Use `review-5stack-feedback` only when the user explicitly invokes it in the 5stack repository.
+Use `review-brigade-feedback` only when the Chef explicitly invokes it in the Brigade repository.

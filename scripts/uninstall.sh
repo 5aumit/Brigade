@@ -38,12 +38,15 @@ while (($#)); do
   esac
 done
 
-BACKUP_DIR="$AGENTS_DIR/5stack-backups/v1"
+BACKUP_DIR="$AGENTS_DIR/brigade-backups/v1"
+LEGACY_BACKUP_DIR="$AGENTS_DIR/5stack-backups/v1"
 SKILLS_DIR="$AGENTS_DIR/skills"
-ROOT_LINK="$AGENTS_DIR/5stack"
-BIN_LINK="$BIN_DIR/5stack"
+ROOT_LINK="$AGENTS_DIR/brigade"
+BIN_LINK="$BIN_DIR/brigade"
+LEGACY_ROOT_LINK="$AGENTS_DIR/5stack"
+LEGACY_BIN_LINK="$BIN_DIR/5stack"
 mapfile -t OWNED_SKILLS < "$STACK_REPO/skills/owned.txt"
-LEGACY_SKILLS=(5stack-setup feedback reflect)
+LEGACY_SKILLS=(5stack-setup feedback reflect give-5stack-feedback reflect-5stack review-5stack-feedback)
 
 say_action() {
   if ((DRY_RUN)); then
@@ -60,10 +63,10 @@ remove_owned_link() {
   if [[ -L "$target_path" ]]; then
     resolved_target=$(readlink -f -- "$target_path" 2>/dev/null || true)
     if [[ "$resolved_target" == "$resolved_source" ]]; then
-      say_action "Remove 5stack link $target_path"
+      say_action "Remove Brigade link $target_path"
       ((!DRY_RUN)) && rm -- "$target_path"
     else
-      echo "Leave non-5stack link unchanged: $target_path"
+      echo "Leave non-Brigade link unchanged: $target_path"
       return
     fi
   elif [[ -e "$target_path" ]]; then
@@ -87,7 +90,7 @@ remove_legacy_link() {
   if [[ -L "$target_path" ]]; then
     actual_target=$(readlink -m -- "$target_path")
     if [[ "$actual_target" != "$expected_target" ]]; then
-      echo "Leave non-5stack legacy link unchanged: $target_path"
+      echo "Leave non-Brigade legacy link unchanged: $target_path"
       return
     fi
     say_action "Remove legacy 5stack link $target_path"
@@ -117,11 +120,29 @@ for skill in "${LEGACY_SKILLS[@]}"; do
   remove_legacy_link \
     "$STACK_REPO/skills/$skill" \
     "$SKILLS_DIR/$skill" \
-    "$BACKUP_DIR/skills/$skill"
+    "$LEGACY_BACKUP_DIR/skills/$skill"
 done
 
 remove_owned_link "$STACK_REPO/AGENTS.md" "$AGENTS_DIR/AGENTS.md" "$BACKUP_DIR/AGENTS.md"
 remove_owned_link "$STACK_REPO" "$ROOT_LINK" "$BACKUP_DIR/root"
-remove_owned_link "$STACK_REPO/bin/5stack" "$BIN_LINK" "$BACKUP_DIR/bin/5stack"
+remove_owned_link "$STACK_REPO/bin/brigade" "$BIN_LINK" "$BACKUP_DIR/bin/brigade"
+remove_owned_link "$STACK_REPO/bin/5stack" "$LEGACY_BIN_LINK" "$BACKUP_DIR/bin/5stack"
+remove_legacy_link "$STACK_REPO" "$LEGACY_ROOT_LINK" "$LEGACY_BACKUP_DIR/root"
 
-echo "5stack-owned links removed. Non-5stack paths were left unchanged."
+if [[ ! -e "$LEGACY_BIN_LINK" && ! -L "$LEGACY_BIN_LINK" && ( -e "$LEGACY_BACKUP_DIR/bin/5stack" || -L "$LEGACY_BACKUP_DIR/bin/5stack" ) ]]; then
+  say_action "Restore $LEGACY_BACKUP_DIR/bin/5stack -> $LEGACY_BIN_LINK"
+  if ((!DRY_RUN)); then
+    mkdir -p -- "$BIN_DIR"
+    mv -- "$LEGACY_BACKUP_DIR/bin/5stack" "$LEGACY_BIN_LINK"
+  fi
+fi
+
+if [[ ! -e "$AGENTS_DIR/AGENTS.md" && ! -L "$AGENTS_DIR/AGENTS.md" && ( -e "$LEGACY_BACKUP_DIR/AGENTS.md" || -L "$LEGACY_BACKUP_DIR/AGENTS.md" ) ]]; then
+  say_action "Restore $LEGACY_BACKUP_DIR/AGENTS.md -> $AGENTS_DIR/AGENTS.md"
+  if ((!DRY_RUN)); then
+    mkdir -p -- "$AGENTS_DIR"
+    mv -- "$LEGACY_BACKUP_DIR/AGENTS.md" "$AGENTS_DIR/AGENTS.md"
+  fi
+fi
+
+echo "Brigade-owned links removed. Non-Brigade paths were left unchanged."

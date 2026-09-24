@@ -17,4 +17,4 @@ For each chunk:
 4. State what surrounding code can be delegated.
 5. Pause for the user's inspection and questions.
 
-Keep meaningful conclusions, change requests, and completed review status in the current session or a user-requested project deliverable. Do not create a 5stack-specific review record.
+Keep meaningful conclusions, change requests, and completed review status in the current session or a user-requested project deliverable. Do not create a Brigade-specific review record.

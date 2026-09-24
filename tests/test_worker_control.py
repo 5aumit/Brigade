@@ -30,6 +30,24 @@ class WorkerControlTests(unittest.TestCase):
         self.assertEqual(control.load_state(self.state), value)
         self.assertEqual(json.loads(self.state.read_text())["version"], 1)
 
+    def test_state_path_uses_legacy_history_until_brigade_state_exists(self):
+        root = Path(self.temporary.name) / "state-root"
+        legacy = root / "5stack" / "workers.json"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text('{"version": 1, "workers": []}\n', encoding="utf-8")
+        with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(root)}):
+            self.assertEqual(control.state_path(), legacy)
+            brigade = root / "brigade" / "workers.json"
+            brigade.parent.mkdir()
+            brigade.write_text('{"version": 1, "workers": []}\n', encoding="utf-8")
+            with self.assertRaisesRegex(control.WorkerError, "both"):
+                control.state_path()
+
+    def test_state_path_defaults_to_brigade_for_fresh_installations(self):
+        root = Path(self.temporary.name) / "fresh-state-root"
+        with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(root)}):
+            self.assertEqual(control.state_path(), root / "brigade" / "workers.json")
+
     def test_occupancy_blocks_only_active_writer(self):
         state = {"version": 1, "workers": [self.worker()]}
         with self.assertRaisesRegex(control.WorkerError, "w_one"):
@@ -110,7 +128,7 @@ class WorkerControlTests(unittest.TestCase):
         backend.call = lambda arguments, _description: calls.append(arguments) or next(replies)
         result = backend.launch(worker, "current")
         self.assertEqual(result.session, {"dispatch_id": "dispatch_123", "task_id": "task_123", "terminal_id": "term_123", "run_id": "run_123", "launch_started": True})
-        self.assertIn(["orchestration", "run-create", "--objective", "5stack worker: Test worker"], calls)
+        self.assertIn(["orchestration", "run-create", "--objective", "Brigade worker: Test worker"], calls)
         self.assertIn("--run", calls[-1])
         self.assertIn("run_123", calls[-1])
 
@@ -129,7 +147,7 @@ class WorkerControlTests(unittest.TestCase):
         backend.call = lambda arguments, _description: calls.append(arguments) or next(replies)
         backend.launch(worker, "new")
         self.assertIn("new-child", calls[-1])
-        self.assertEqual(calls[-1][calls[-1].index("--name") + 1], "5stack-abc123")
+        self.assertEqual(calls[-1][calls[-1].index("--name") + 1], "brigade-abc123")
 
     def test_orca_existing_worktree_uses_identity_from_its_directory(self):
         backend = control.OrcaBackend()

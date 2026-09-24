@@ -1,6 +1,6 @@
 ---
 name: domain-modeling
-description: Sharpen project-specific domain vocabulary without creating 5stack-specific project artifacts.
+description: Sharpen project-specific domain vocabulary without creating Brigade-specific project artifacts.
 ---
 
 # Domain modeling
@@ -14,6 +14,6 @@ Keep domain vocabulary grounded in the project:
 - Cross-check claimed domain behavior with code and concrete edge cases.
 - Update project documentation only when the request authorizes that deliverable and follow the repository's conventions.
 
-When a durable engineering decision should be documented, use the project's existing decision convention. If none exists, report the conclusion in chat instead of creating a 5stack-specific location.
+When a durable engineering decision should be documented, use the project's existing decision convention. If none exists, report the conclusion in chat instead of creating a Brigade-specific location.
 
 Do not manufacture terminology for ordinary programming concepts.

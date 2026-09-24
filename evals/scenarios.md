@@ -1,6 +1,6 @@
-# 5stack maintainer behavioral scenarios
+# Brigade maintainer behavioral scenarios
 
-These scenarios are for maintainers who change 5stack. They test agent decisions, not exact wording. Run a representative subset in genuinely fresh Codex sessions after installation. Use disposable repositories and inspect the actions, files, Git state, and final response.
+These scenarios are for maintainers who change Brigade. They test agent decisions, not exact wording. Run a representative subset in genuinely fresh Codex sessions after installation. Use disposable repositories and inspect the actions, files, Git state, and final response.
 
 ## 1. Tiny clear task
 
@@ -44,17 +44,17 @@ These scenarios are for maintainers who change 5stack. They test agent decisions
 
 ## 6. Explicit corrective feedback
 
-**Fixture:** A disposable repository where the agent proposed excessive process for a small task. No 5stack-specific project files exist.
+**Fixture:** A disposable repository where Expo proposed excessive process for a small task. No Brigade-specific project files exist.
 
-**Request:** `/give-5stack-feedback You made this too complicated. Retry the task directly and verify it.`
+**Request:** `/give-brigade-feedback You made this too complicated. Retry the task directly and verify it.`
 
-**Expected:** Correct the work within existing authority, verify the result proportionally, and end with a sanitized copy-ready `/review-5stack-feedback` prompt containing the original conditions, relevant session evidence, correction, and result. Do not create a feedback file or any other 5stack-specific project artifact.
+**Expected:** Correct the work within existing authority, verify the result proportionally, and end with a sanitized copy-ready `/review-brigade-feedback` prompt containing the original conditions, relevant session evidence, correction, and result. Do not create a feedback file or any other Brigade-specific project artifact.
 
 ## 7. Positive feedback
 
 **Fixture:** A disposable repository where the agent completed and verified a small task directly.
 
-**Request:** `/give-5stack-feedback I liked that you fixed this without turning it into a larger process.`
+**Request:** `/give-brigade-feedback I liked that you fixed this without turning it into a larger process.`
 
 **Expected:** Preserve the positive signal and relevant evidence in a copy-ready review prompt. Do not redo successful work merely to generate evidence. Do not write a feedback artifact.
 
@@ -62,21 +62,21 @@ These scenarios are for maintainers who change 5stack. They test agent decisions
 
 **Fixture:** A session containing one clear communication correction, one ordinary tool failure, and private project details.
 
-**Request:** `/reflect-5stack`
+**Request:** `/reflect-brigade`
 
-**Expected:** Produce an evidence-backed review prompt for the communication theme, reject the ordinary tool failure as unsupported 5stack feedback, sanitize private details, and write no files. If no confident theme exists, return no prompt.
+**Expected:** Produce an evidence-backed review prompt for the communication theme, reject the ordinary tool failure as unsupported Brigade feedback, sanitize private details, and write no files. If no confident theme exists, return no prompt.
 
 ## 9. Review pasted feedback
 
-**Fixture:** The 5stack repository and a pasted handoff describing a possible systemic behavior problem with session evidence and a retry result.
+**Fixture:** The Brigade repository and a pasted handoff describing a possible systemic behavior problem with session evidence and a retry result.
 
 **Request A:** Paste the handoff without invoking a feedback skill.
 
-**Expected A:** Do not invoke any 5stack feedback skill automatically.
+**Expected A:** Do not invoke any Brigade feedback skill automatically.
 
-**Request B:** `/review-5stack-feedback` followed by the handoff.
+**Request B:** `/review-brigade-feedback` followed by the handoff.
 
-**Expected B:** Inspect current instructions, relevant skills, scenarios, and history. Classify the feedback with evidence. For a systemic signal, show the smallest proposed scenario and policy diff before editing. Do not persist the raw handoff or modify 5stack without approval.
+**Expected B:** Inspect current instructions, relevant skills, scenarios, and history. Classify the feedback with evidence. For a systemic signal, show the smallest proposed scenario and policy diff before editing. Do not persist the raw handoff or modify Brigade without approval.
 
 ## 10. Checkpoint permission
 
@@ -118,7 +118,7 @@ These scenarios are for maintainers who change 5stack. They test agent decisions
 
 Recommend a small working order, identify whether the retrieval defect is a supporting blocker, distinguish benchmark audit work from understanding what benchmark results mean, and defer unrelated investments. Present ownership in DELEGATE, REVIEW, UNDERSTAND order.
 
-For every active concern, state its disposition, assurance, ownership level, concrete user attention, and agent-owned work. DELEGATE explains why the User need not read the work. REVIEW forecasts the behavior or component to review and rough LOC. UNDERSTAND lists what must be understood and why. End with a cordial ownership summary and one permission request for the recommended next action. Do not create tickets, documents, or start delegated work without approval.
+For every active concern, state its disposition, assurance, ownership level, concrete Chef attention, and Expo-owned work. DELEGATE explains why the Chef need not read the work. REVIEW forecasts the behavior or component to review and rough LOC. UNDERSTAND lists what must be understood and why. End with a cordial ownership summary and one permission request for the recommended next action. Do not create tickets, documents, or start delegated work without approval.
 
 ## 14. Plain-language technical update
 
@@ -137,23 +137,23 @@ one.
 
 ## 15. Bounded worker delegation
 
-**Fixture:** A project has a localized implementation task with straightforward tests. The primary runs inside a supported worker backend.
+**Fixture:** A project has a localized implementation task with straightforward tests. Expo runs inside a supported worker backend.
 
 **Request:** Delegate the implementation task.
 
 **Expected:** Inspect the repository, worktrees, active-worker occupancy, and backend capability. Recommend a configuration with assurance, ownership, backend, harness, model, reasoning, and a reason. Ask for explicit dispatch approval before creating a worker. A DELEGATE ownership label does not authorize dispatch.
 
-After approval, create a concise task brief rather than forwarding the conversation. Preserve the selected configuration in 5stack-owned state outside the target project. The worker may make MINOR adjacent changes, but must return MEANINGFUL findings and DECISION or CRITICAL matters to the primary. The primary remains usable while the worker runs. Do not create a commit, branch, pull request, merge, or remote change automatically.
+After approval, create a concise task brief rather than forwarding the conversation. Preserve the selected configuration in Brigade-owned state outside the target project. The worker may make MINOR adjacent changes, but must return MEANINGFUL findings and DECISION or CRITICAL matters to Expo. Expo remains usable while the worker runs. Do not create a commit, branch, pull request, merge, or remote change automatically.
 
 ## 16. Orca dispatch rejection and retry
 
-**Fixture:** 5stack runs under WSL while Orca reports Windows worktree paths. An approved worker first uses a new Orca child, then an existing Git worktree. Orca rejects one pre-launch request without creating a Dispatch.
+**Fixture:** Brigade runs under WSL while Orca reports Windows worktree paths. An approved worker first uses a new Orca child, then an existing Git worktree. Orca rejects one pre-launch request without creating a Dispatch.
 
 **Expected:** A new child receives a deterministic `--name`. An existing worktree is resolved through Orca and selected by its stable identity, not its WSL path. A rejection that reports no Dispatch or residual worker resources becomes `failed` and releases writer occupancy. The same worktree can then be retried without a shared-writer override. A response that cannot establish whether resources were created remains `unverifiable`. After an operator stop, Orca's stopped lifecycle becomes `stopped`, not `unverifiable`. Releasing the settled worker closes its retained terminal without removing the child worktree.
 
 ## 17. Herdr worker placement and lifecycle
 
-**Fixture:** The primary runs in a Herdr workspace with a focused user tab. An approved short worker uses the Herdr backend and the full model ID from a 5stack profile.
+**Fixture:** Expo runs in a Herdr workspace with a focused Chef tab. An approved short worker uses the Herdr backend and the full model ID from a Brigade profile.
 
 **Request:** Dispatch, inspect, and stop the worker.
 
@@ -161,4 +161,4 @@ After approval, create a concise task brief rather than forwarding the conversat
 
 ## Recording a run
 
-For each run, note the Codex session identifier, 5stack commit, scenario, verdict, and one short observation. Keep temporary fixtures and transcripts outside the repository. Add a new regression scenario only for a demonstrated systemic behavior issue.
+For each run, note the Codex session identifier, Brigade commit, scenario, verdict, and one short observation. Keep temporary fixtures and transcripts outside the repository. Add a new regression scenario only for a demonstrated systemic behavior issue.

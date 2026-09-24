@@ -1,16 +1,16 @@
 ---
-name: give-5stack-feedback
-description: Respond to explicit feedback about 5stack, safely correct the current work when needed, and draft an evidence-backed prompt for review in the 5stack repository. Use only when the user explicitly invokes give-5stack-feedback.
+name: give-brigade-feedback
+description: Respond to explicit feedback about Brigade, safely correct the current work when needed, and draft an evidence-backed prompt for review in the Brigade repository. Use only when the Chef explicitly invokes give-brigade-feedback.
 disable-model-invocation: true
 ---
 
-# Give 5stack feedback
+# Give Brigade feedback
 
-Treat the user's message as both feedback about 5stack and, when negative or mixed, a correction to the current work. Do not edit 5stack from the project session. Do not create or update any file solely to capture feedback.
+Treat the Chef's message as both feedback about Brigade and, when negative or mixed, a correction to the current work. Do not edit Brigade from the project session. Do not create or update any file solely to capture feedback.
 
 ## Respond to the feedback
 
-Preserve the substance of the user's wording. Classify the signal as positive, negative, or mixed without arguing against it.
+Preserve the substance of the Chef's wording. Classify the signal as positive, negative, or mixed without arguing against it.
 
 - For positive feedback, continue normally. Do not redo successful work merely to produce evidence.
 - For negative or mixed feedback, correct or retry the affected work in the current response when it is safe and still within the authority already granted.
@@ -19,19 +19,19 @@ Preserve the substance of the user's wording. Classify the signal as positive, n
 - A missing-finding correction means surfacing the omitted fact and its significance.
 - An ownership correction means revising the recommendation and naming the exact human attention that matters.
 
-Feedback grants no new authority. Do not commit, push, delete, publish, contact external systems, repeat a destructive action, or broaden the task unless that action was already authorized. If a safe retry needs a user decision or new authority, explain the boundary and still draft the review prompt.
+Feedback grants no new authority. Do not commit, push, delete, publish, contact external systems, repeat a destructive action, or broaden the task unless that action was already authorized. If a safe retry needs a Chef decision or new authority, explain the boundary and still draft the review prompt.
 
 ## Build a small evidence capsule
 
-Use the current session to include only evidence that helps another agent distinguish a 5stack problem from a model mistake, project-specific issue, or misunderstanding:
+Use the current session to include only evidence that helps Expo distinguish a Brigade problem from a model mistake, project-specific issue, or misunderstanding:
 
 - the original goal and relevant task conditions;
-- the 5stack workflow or skill involved;
+- the Brigade workflow or skill involved;
 - a short exact excerpt or faithful summary of the affected agent response;
 - the concrete code, verification, finding, or ownership evidence when relevant;
-- the user's correction;
+- the Chef's correction;
 - what changed after the correction and whether it worked;
-- the installed 5stack commit or best available version description.
+- the installed Brigade commit or best available version description.
 
 For communication feedback, prefer a short before-and-after excerpt. For code feedback, summarize affected files or functions, the concrete defect, and verification instead of copying a diff. For omitted information, identify the fact available in the session and what the response left out. For ownership feedback, identify the risk-bearing decision or code and the recommendation that was given.
 
@@ -42,12 +42,12 @@ Never include a full transcript, chain of thought, complete diff, large tool out
 Lead with the corrected outcome or normal task response. End with one copy-ready fenced text block using this structure:
 
 ```text
-/review-5stack-feedback
+/review-brigade-feedback
 
 Signal:
 <positive | negative | mixed>
 
-5stack version:
+Brigade version:
 <commit or best available description>
 
 Original task:
@@ -59,8 +59,8 @@ Relevant conditions:
 Observed behavior:
 <what the agent did>
 
-User feedback:
-<the user's feedback, quoted or closely preserved>
+Chef feedback:
+<the Chef's feedback, quoted or closely preserved>
 
 Session evidence:
 - Agent response: <short excerpt or faithful summary>
@@ -74,13 +74,13 @@ Result:
 <outcome and supporting evidence>
 
 Preferred future behavior:
-<what 5stack should encourage>
+<what Brigade should encourage>
 
 Review request:
-Inspect the relevant 5stack instructions, skills, scenarios, and history.
+Inspect the relevant Brigade instructions, skills, scenarios, and history.
 Classify this as already addressed, a usage or routing issue, project-specific,
 or systemic. If systemic, propose the smallest regression scenario and system
 change. Show proposed changes before editing.
 ```
 
-Do not save or send the prompt. The user decides whether to copy it into a 5stack development session.
+Do not save or send the prompt. The Chef decides whether to copy it into a Brigade development session.

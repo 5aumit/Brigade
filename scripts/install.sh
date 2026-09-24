@@ -43,15 +43,18 @@ while (($#)); do
   esac
 done
 
-[[ -d "$STACK_REPO/.git" ]] || { echo "Not a Git repository: $STACK_REPO" >&2; exit 1; }
+git -C "$STACK_REPO" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a Git repository: $STACK_REPO" >&2; exit 1; }
 [[ -f "$STACK_REPO/AGENTS.md" ]] || { echo "Missing $STACK_REPO/AGENTS.md" >&2; exit 1; }
 
-BACKUP_DIR="$AGENTS_DIR/5stack-backups/v1"
+BACKUP_DIR="$AGENTS_DIR/brigade-backups/v1"
+LEGACY_BACKUP_DIR="$AGENTS_DIR/5stack-backups/v1"
 SKILLS_DIR="$AGENTS_DIR/skills"
-ROOT_LINK="$AGENTS_DIR/5stack"
-BIN_LINK="$BIN_DIR/5stack"
+ROOT_LINK="$AGENTS_DIR/brigade"
+BIN_LINK="$BIN_DIR/brigade"
+LEGACY_ROOT_LINK="$AGENTS_DIR/5stack"
+LEGACY_BIN_LINK="$BIN_DIR/5stack"
 mapfile -t OWNED_SKILLS < "$STACK_REPO/skills/owned.txt"
-LEGACY_SKILLS=(5stack-setup feedback reflect)
+LEGACY_SKILLS=(5stack-setup feedback reflect give-5stack-feedback reflect-5stack review-5stack-feedback)
 
 confirm_global_agents_installation() {
   local target_path=$1 resolved_source resolved_target response has_existing=0
@@ -75,10 +78,10 @@ confirm_global_agents_installation() {
   }
 
   if ((has_existing)); then
-    echo "5stack will replace $target_path with a symlink to $STACK_REPO/AGENTS.md."
+    echo "Brigade will replace $target_path with a symlink to $STACK_REPO/AGENTS.md."
     echo "The current path will be moved to $BACKUP_DIR/AGENTS.md."
   else
-    echo "5stack will create $target_path as a symlink to $STACK_REPO/AGENTS.md."
+    echo "Brigade will create $target_path as a symlink to $STACK_REPO/AGENTS.md."
   fi
   read -r -p "Continue? [y/N] " response
   [[ "$response" =~ ^[Yy]([Ee][Ss])?$ ]] || {
@@ -135,7 +138,7 @@ migrate_legacy_link() {
   if [[ -L "$target_path" ]]; then
     actual_target=$(readlink -m -- "$target_path")
     if [[ "$actual_target" != "$expected_target" ]]; then
-      echo "Leave non-5stack legacy link unchanged: $target_path"
+      echo "Leave non-Brigade legacy link unchanged: $target_path"
       return
     fi
     say_action "Remove legacy 5stack link $target_path"
@@ -158,12 +161,13 @@ for skill in "${LEGACY_SKILLS[@]}"; do
   migrate_legacy_link \
     "$STACK_REPO/skills/$skill" \
     "$SKILLS_DIR/$skill" \
-    "$BACKUP_DIR/skills/$skill"
+    "$LEGACY_BACKUP_DIR/skills/$skill"
 done
 
 install_link "$STACK_REPO" "$ROOT_LINK" "$BACKUP_DIR/root"
 install_link "$STACK_REPO/AGENTS.md" "$AGENTS_DIR/AGENTS.md" "$BACKUP_DIR/AGENTS.md"
-install_link "$STACK_REPO/bin/5stack" "$BIN_LINK" "$BACKUP_DIR/bin/5stack"
+install_link "$STACK_REPO/bin/brigade" "$BIN_LINK" "$BACKUP_DIR/bin/brigade"
+install_link "$STACK_REPO/bin/5stack" "$LEGACY_BIN_LINK" "$BACKUP_DIR/bin/5stack"
 
 for skill in "${OWNED_SKILLS[@]}"; do
   [[ -f "$STACK_REPO/skills/$skill/SKILL.md" ]] || {
@@ -176,9 +180,14 @@ for skill in "${OWNED_SKILLS[@]}"; do
     "$BACKUP_DIR/skills/$skill"
 done
 
+migrate_legacy_link "$STACK_REPO" "$LEGACY_ROOT_LINK" "$LEGACY_BACKUP_DIR/root"
+
 if ((DRY_RUN)); then
-  echo "5stack installation dry run complete."
+  echo "Brigade installation dry run complete."
 else
-  echo "5stack installation complete. Start a fresh Codex session to load it."
+  echo "Brigade installation complete. Start a fresh Codex session to load it."
 fi
 echo "Backups, when needed: $BACKUP_DIR"
+if [[ -d "$LEGACY_BACKUP_DIR" ]]; then
+  echo "Retained legacy backups: $LEGACY_BACKUP_DIR"
+fi

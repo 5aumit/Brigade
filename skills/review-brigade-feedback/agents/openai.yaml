@@ -1,0 +1,6 @@
+interface:
+  display_name: "Review Brigade Feedback"
+  short_description: "Investigate a pasted Brigade feedback handoff"
+  default_prompt: "Use $review-brigade-feedback to review this feedback about Brigade: "
+policy:
+  allow_implicit_invocation: false

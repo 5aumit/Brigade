@@ -1,6 +1,0 @@
-interface:
-  display_name: "Reflect 5stack"
-  short_description: "Draft evidence-backed feedback from this session"
-  default_prompt: "Use $reflect-5stack to inspect this session for useful 5stack feedback."
-policy:
-  allow_implicit_invocation: false

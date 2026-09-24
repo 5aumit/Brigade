@@ -1,8 +1,8 @@
 route
 guide
 delegate
-give-5stack-feedback
-reflect-5stack
+give-brigade-feedback
+reflect-brigade
 brainstorming
 grilling
 grill-with-docs
@@ -14,4 +14,4 @@ manual-review
 tdd
 diagnosing-bugs
 domain-modeling
-review-5stack-feedback
+review-brigade-feedback
