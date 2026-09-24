@@ -23,6 +23,7 @@ from typing import Any
 ACTIVE_STATUSES = {"active", "blocked", "stopping", "unverifiable"}
 TERMINAL_STATUSES = {"completed", "failed", "stopped", "disappeared"}
 REASONING_LEVELS = {"low", "medium", "high", "xhigh", "max", "ultra"}
+HARNESSES = {"codex", "cursor"}
 
 # Profiles are data, not backend behavior.  Add a model here without changing
 # worker lifecycle code.  Models use the identifiers accepted by the Codex CLI.
@@ -203,11 +204,21 @@ def choose_profile(
 
 
 def resolved_configuration(backend: str, harness: str, model: str, reasoning: str, profile: str | None) -> dict[str, str | None]:
-    if harness != "codex":
+    if harness not in HARNESSES:
         raise WorkerError(f"Harness is not supported in v0: {harness}")
     if reasoning not in REASONING_LEVELS:
         raise WorkerError(f"Unsupported reasoning level: {reasoning}")
     return {"backend": backend, "harness": harness, "model": model, "reasoning": reasoning, "profile": profile}
+
+
+def herdr_agent_start_tail(config: dict[str, Any]) -> list[str]:
+    harness = config.get("harness") or "codex"
+    if harness == "codex":
+        return ["--kind", "codex", "--", "--model", config["model"], "-c", f'model_reasoning_effort="{config["reasoning"]}"']
+    if harness == "cursor":
+        # Cursor model ids already name the variant. composer-2.5 rejects a separate effort.
+        return ["--kind", "cursor", "--", "--model", config["model"]]
+    raise WorkerError(f"Harness is not supported in v0: {harness}")
 
 
 def orca_cli_command() -> str | None:
@@ -399,15 +410,21 @@ def run_has_worker_escalation(value: Any, worker: dict[str, Any]) -> bool:
     )
 
 
-def effective_launch_configuration(value: Any) -> dict[str, str] | None:
+def effective_launch_configuration(value: Any, *, allow_missing_effort: bool = False) -> dict[str, str] | None:
     launch = named_object(value, "launch")
     effective = (launch or {}).get("effective")
     if not isinstance(effective, dict):
         return None
     model = effective.get("model") or effective.get("modelId")
-    reasoning = effective.get("effort") or effective.get("reasoning")
-    if not isinstance(model, str) or not isinstance(reasoning, str):
+    reasoning = effective.get("effort")
+    if reasoning is None:
+        reasoning = effective.get("reasoning")
+    if not isinstance(model, str):
         return None
+    if not isinstance(reasoning, str):
+        if not allow_missing_effort:
+            return None
+        reasoning = ""
     return {"model": model, "reasoning": reasoning}
 
 
@@ -485,8 +502,10 @@ class OrcaBackend(Backend):
         arguments = [
             "orchestration", "worker-start", "--spec", worker["brief"], "--task-title", worker["task"]["title"],
             "--worktree", selected_worktree, "--run", run_id,
-            "--agent", config["harness"], "--model", config["model"], "--effort", config["reasoning"],
+            "--agent", config["harness"], "--model", config["model"],
         ]
+        if config["harness"] != "cursor":
+            arguments.extend(["--effort", config["reasoning"]])
         if worktree_mode == "new":
             arguments.extend(["--name", f"brigade-{worker['id'].removeprefix('w_')}"])
         try:
@@ -504,7 +523,7 @@ class OrcaBackend(Backend):
         task_id = (task or {}).get("id")
         session = {"dispatch_id": dispatch_id, "task_id": task_id, "terminal_id": terminal_id, "run_id": run_id, "launch_started": True}
         worker["backend_session"] = session
-        effective = effective_launch_configuration(response)
+        effective = effective_launch_configuration(response, allow_missing_effort=config["harness"] == "cursor")
         if effective:
             worker["effective_configuration"] = effective
         else:
@@ -513,7 +532,9 @@ class OrcaBackend(Backend):
             persist()
         if not effective:
             raise WorkerError("Orca did not confirm the effective model and reasoning configuration")
-        if effective and (effective["model"] != config["model"] or effective["reasoning"] != config["reasoning"]):
+        model_mismatch = effective["model"] != config["model"]
+        reasoning_mismatch = config["harness"] != "cursor" and effective["reasoning"] != config["reasoning"]
+        if effective and (model_mismatch or reasoning_mismatch):
             raise WorkerError(f"Orca launched a different configuration: requested {config['model']} / {config['reasoning']}, effective {effective['model']} / {effective['reasoning']}")
         return LaunchResult(session, actual_worktree)
 
@@ -637,7 +658,7 @@ class HerdrBackend(Backend):
         worker["backend_session"]["agent_start_attempted"] = True
         if persist:
             persist()
-        self.call(["agent", "start", name, "--kind", "codex", "--pane", pane_id, "--", "--model", config["model"], "-c", f'model_reasoning_effort="{config["reasoning"]}"'], "Start Herdr worker")
+        self.call(["agent", "start", name, "--pane", pane_id, *herdr_agent_start_tail(config)], "Start Herdr worker")
         worker["backend_session"]["agent_started"] = True
         if persist:
             persist()

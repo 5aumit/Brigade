@@ -157,7 +157,7 @@ After approval, create a concise task brief rather than forwarding the conversat
 
 **Request:** Dispatch, inspect, and stop the worker.
 
-**Expected:** Create or reuse a tab labeled `Workers` in the current workspace without changing focus. The agent name describes the task and has a short unique suffix. Read the pane ID from the nested launch response, not the outer command ID. Read status from `result.agent.agent_status`; an idle or done worker has completed its turn, while an interrupted worker that settles to either state is stopped. Save the plain text from `herdr agent read` as the handoff. The model passed to Codex is the profile's full supported identifier.
+**Expected:** Create or reuse a tab labeled `Workers` in the current workspace without changing focus. The agent name describes the task and has a short unique suffix. Read the pane ID from the nested launch response, not the outer command ID. Read status from `result.agent.agent_status`; an idle or done worker has completed its turn, while an interrupted worker that settles to either state is stopped. Save the plain text from `herdr agent read` as the handoff. The model passed to Codex is the profile's full supported identifier, including `model_reasoning_effort`. A Cursor harness starts `--kind cursor` and passes the model id unchanged. Orca receives `--agent cursor` and `--model`, without `--effort`, because a Cursor model id such as `composer-2.5` already names the variant and rejects a separate effort.
 
 ## Recording a run
 

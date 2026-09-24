@@ -65,6 +65,18 @@ class WorkerControlTests(unittest.TestCase):
     def test_configuration_preserves_selected_values(self):
         config = control.resolved_configuration("orca", "codex", "gpt-5.6-terra", "high", "codex-terra-high")
         self.assertEqual(config, {"backend": "orca", "harness": "codex", "model": "gpt-5.6-terra", "reasoning": "high", "profile": "codex-terra-high"})
+        cursor = control.resolved_configuration("orca", "cursor", "composer-2.5", "low", None)
+        self.assertEqual(cursor["harness"], "cursor")
+        self.assertEqual(cursor["model"], "composer-2.5")
+        with self.assertRaisesRegex(control.WorkerError, "not supported"):
+            control.resolved_configuration("orca", "claude", "opus", "medium", None)
+
+    def test_herdr_cursor_start_uses_cursor_kind(self):
+        tail = control.herdr_agent_start_tail({"harness": "cursor", "model": "composer-2.5", "reasoning": "low"})
+        self.assertEqual(tail, ["--kind", "cursor", "--", "--model", "composer-2.5"])
+        codex = control.herdr_agent_start_tail({"model": "gpt-5.6-luna", "reasoning": "medium"})
+        self.assertEqual(codex[:2], ["--kind", "codex"])
+        self.assertIn("model_reasoning_effort", " ".join(codex))
 
     def test_capabilities_are_optional(self):
         original = {key: os.environ.get(key) for key in ("ORCA_CLI_COMMAND", "ORCA_TERMINAL_HANDLE", "HERDR_ENV")}
@@ -131,6 +143,24 @@ class WorkerControlTests(unittest.TestCase):
         self.assertIn(["orchestration", "run-create", "--objective", "Brigade worker: Test worker"], calls)
         self.assertIn("--run", calls[-1])
         self.assertIn("run_123", calls[-1])
+        self.assertIn("--effort", calls[-1])
+
+    def test_orca_cursor_launch_omits_effort(self):
+        worker = {
+            "id": "w_cursor", "brief": "read only", "task": {"title": "Read install commands"},
+            "configuration": {"harness": "cursor", "model": "composer-2.5", "reasoning": "low"},
+            "worktree": {"path": "/repo", "kind": "current"},
+        }
+        backend = control.OrcaBackend()
+        calls = []
+        replies = iter([
+            {"ok": True, "result": {"run": {"id": "run_123"}}},
+            {"ok": True, "result": {"dispatch": {"id": "dispatch_123"}, "task": {"id": "task_123"}, "worktree": {"path": "/repo"}, "launch": {"effective": {"model": "composer-2.5", "effort": None}}}},
+        ])
+        backend.call = lambda arguments, _description: calls.append(arguments) or next(replies)
+        backend.launch(worker, "current")
+        self.assertEqual(calls[-1][calls[-1].index("--agent") + 1], "cursor")
+        self.assertNotIn("--effort", calls[-1])
 
     def test_orca_new_child_has_deterministic_name(self):
         worker = {
@@ -324,8 +354,7 @@ class WorkerControlTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"HERDR_WORKSPACE_ID": "w1"}):
             backend.launch(worker, "current")
         self.assertEqual(calls[2], ["pane", "split", "w1:p2", "--direction", "right", "--cwd", "/repo", "--no-focus"])
-        self.assertEqual(calls[3][:6], ["agent", "start", "w-60-second-test-def", "--kind", "codex", "--pane"])
-        self.assertEqual(calls[3][6], "w1:p3")
+        self.assertEqual(calls[3][:7], ["agent", "start", "w-60-second-test-def", "--pane", "w1:p3", "--kind", "codex"])
         self.assertIn("gpt-5.6-luna", calls[3])
 
     def test_herdr_inspect_nested_status_after_stop(self):
