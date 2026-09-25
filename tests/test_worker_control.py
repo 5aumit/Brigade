@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib.util
+import io
 import json
 import os
 import tempfile
@@ -455,6 +457,42 @@ class WorkerControlTests(unittest.TestCase):
                 os.environ["ORCA_TERMINAL_HANDLE"] = original_orca
             if original_orca_pane is not None:
                 os.environ["ORCA_PANE_KEY"] = original_orca_pane
+
+    def test_list_filters_current_repository_and_sorts_newest_first(self):
+        older = {"id": "older", "created_at": "2020-01-01T00:00:00+00:00", "repository": {"path": "/repo/current"}}
+        newer = {"id": "newer", "created_at": "2024-06-01T00:00:00+00:00", "repository": {"path": "/repo/current"}}
+        other = {"id": "other", "created_at": "2025-01-01T00:00:00+00:00", "repository": {"path": "/repo/other"}}
+        workers = [older, other, newer]
+        current = control.workers_for_list(workers, "/repo/current")
+        self.assertEqual([worker["id"] for worker in current], ["newer", "older"])
+        everything = control.workers_for_list(workers, None)
+        self.assertEqual([worker["id"] for worker in everything], ["other", "newer", "older"])
+
+    def test_recommend_help_lists_profile_factors_and_rejects_medium(self):
+        path = Path(__file__).resolve().parents[1] / "scripts" / "worker.py"
+        spec = importlib.util.spec_from_file_location("brigade_worker_cli", path)
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+        buffer = io.StringIO()
+        with mock.patch("sys.argv", ["brigade", "worker", "recommend", "--help"]):
+            with mock.patch("sys.stdout", buffer):
+                with self.assertRaises(SystemExit) as raised:
+                    cli.parser().parse_args()
+        self.assertEqual(raised.exception.code, 0)
+        help_text = buffer.getvalue()
+        choices = "{low,moderate,high,straightforward,hard}"
+        self.assertEqual(help_text.count(choices), 8)
+        self.assertNotIn("medium", help_text)
+        self.assertEqual(control.choose_profile("STANDARD", "moderate", "moderate", "moderate", "moderate")["name"], "codex-terra-high")
+        with self.assertRaisesRegex(control.WorkerError, "must be"):
+            control.choose_profile("STANDARD", "medium", "low", "straightforward", "low")
+
+    def test_cursor_warning_only_for_new_cursor_worktree(self):
+        message = control.cursor_new_worktree_warning("cursor", "new")
+        self.assertIn("trusts that new folder", message)
+        self.assertIsNone(control.cursor_new_worktree_warning("cursor", "current"))
+        self.assertIsNone(control.cursor_new_worktree_warning("cursor", "/repo/existing"))
+        self.assertIsNone(control.cursor_new_worktree_warning("codex", "new"))
 
 
 if __name__ == "__main__":

@@ -47,6 +47,8 @@ Use `/route` when the Chef asks what process fits. It recommends the next workfl
 
 Use `/route`, not `/ask-matt`, as the normal router. `ask-matt` remains an optional upstream skill for legacy use.
 
+When the Chef says "worker", "ask a worker", or "delegate", follow the delegate skill and `brigade worker`. Do not start the host IDE's built-in subagent tool.
+
 ## Challenge once
 
 When a requested approach appears unnecessarily complex, costly, speculative, or difficult to maintain:

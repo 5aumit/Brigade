@@ -1,6 +1,6 @@
 ---
 name: delegate
-description: Recommend and, only after explicit permission, dispatch one bounded coding worker through the Brigade worker control plane.
+description: Recommend and, only after explicit permission, dispatch one bounded coding worker through the Brigade worker control plane. Use when the Chef says "worker", "ask a worker", or "delegate".
 ---
 
 # Delegate bounded work

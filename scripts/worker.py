@@ -112,6 +112,9 @@ def command_dispatch(args) -> int:
     def persist_progress():
         control.save_state(state)
 
+    notice = control.cursor_new_worktree_warning(harness, args.worktree)
+    if notice:
+        print(notice)
     try:
         result = control.backend_for(backend_name).launch(worker, args.worktree, persist_progress)
     except Exception as error:
@@ -125,13 +128,15 @@ def command_dispatch(args) -> int:
     worker["worktree"]["path"] = control.canonical_worktree_path(result.worktree)
     control.event(worker, "launched", f"Launched through {backend_name}.")
     control.save_state(state)
+    print(f"Worker {worker['id']} launched.")
     output(worker, args.json)
     return 0
 
 
 def command_list(args) -> int:
     state = control.load_state()
-    workers = state["workers"]
+    repository_path = None if args.all else control.git_repository()["path"]
+    workers = control.workers_for_list(state["workers"], repository_path)
     if args.json:
         output(workers, True)
     elif not workers:
@@ -232,10 +237,10 @@ def parser() -> argparse.ArgumentParser:
     recommend = commands.add_parser("recommend", help="suggest a declarative worker profile")
     recommend.add_argument("--assurance", required=True, choices=["LIGHT", "STANDARD", "HIGH", "light", "standard", "high"])
     recommend.add_argument("--ownership", default="DELEGATE", choices=["DELEGATE", "REVIEW", "UNDERSTAND", "delegate", "review", "understand"])
-    recommend.add_argument("--complexity", default="low")
-    recommend.add_argument("--uncertainty", default="low")
-    recommend.add_argument("--verification", default="straightforward")
-    recommend.add_argument("--judgment", default="low")
+    recommend.add_argument("--complexity", default="low", choices=control.PROFILE_FACTORS)
+    recommend.add_argument("--uncertainty", default="low", choices=control.PROFILE_FACTORS)
+    recommend.add_argument("--verification", default="straightforward", choices=control.PROFILE_FACTORS)
+    recommend.add_argument("--judgment", default="low", choices=control.PROFILE_FACTORS)
     recommend.add_argument("--backend", default="auto")
     recommend.add_argument("--json", action="store_true")
     recommend.set_defaults(function=command_recommend)
@@ -258,6 +263,7 @@ def parser() -> argparse.ArgumentParser:
     dispatch.set_defaults(function=command_dispatch)
 
     listing = commands.add_parser("list", help="list persisted worker records")
+    listing.add_argument("--all", action="store_true", help="show workers from every repository")
     listing.add_argument("--json", action="store_true")
     listing.set_defaults(function=command_list)
 
