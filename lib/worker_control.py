@@ -181,6 +181,28 @@ def create_worktree(repository: dict[str, str], worker_id: str) -> str:
     return str(path.resolve())
 
 
+PROFILE_FACTORS = ("low", "moderate", "high", "straightforward", "hard")
+
+
+def cursor_new_worktree_warning(harness: str, worktree_mode: str) -> str | None:
+    if harness == "cursor" and worktree_mode == "new":
+        return "Cursor will not start the agent until the Chef trusts that new folder in Cursor."
+    return None
+
+
+def workers_for_list(workers: list[dict[str, Any]], repository_path: str | None) -> list[dict[str, Any]]:
+    if repository_path is None:
+        selected = list(workers)
+    else:
+        current = canonical_worktree_path(repository_path)
+        selected = [
+            worker for worker in workers
+            if worker.get("repository", {}).get("path")
+            and canonical_worktree_path(worker["repository"]["path"]) == current
+        ]
+    return sorted(selected, key=lambda worker: worker.get("created_at") or "", reverse=True)
+
+
 def choose_profile(
     assurance: str,
     complexity: str = "low",

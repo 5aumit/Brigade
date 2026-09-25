@@ -1,3 +1,5 @@
+![Brigade](assets/wordmark-cream.png)
+
 # Brigade
 
 Develop with trust in yourself and your agent.
